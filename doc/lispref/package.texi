@@ -106,10 +106,12 @@ evaluates the autoload definitions in @file{@var{name}-autoloads.el}.
 
   Whenever Emacs starts up, it automatically calls the function
 @code{package-initialize} to load installed packages.  This is done
-after loading the init file and abbrev file (if any) and before
-running @code{after-init-hook} (@pxref{Startup Summary}).  Automatic
-package loading is disabled if the user option
-@code{package-enable-at-startup} is @code{nil}.
+after loading the early init file, but before loading the early init
+file and abbrev file (if any) and before running
+@code{after-init-hook} (@pxref{Startup Summary}).  Automatic package
+loading is disabled if the user option
+@code{package-enable-at-startup} is @code{nil}.  (Of course, the
+setting of this user option must be done in the early init file.)
 
 @deffn Command package-initialize &optional no-activate
 This function initializes Emacs' internal record of which packages are
@@ -123,6 +125,12 @@ GNU Emacs Manual}.
 The optional argument @var{no-activate}, if non-@code{nil}, causes
 Emacs to update its record of installed packages without actually
 loading them; it is for internal use only.
+
+In most cases, you should not need to call @code{package-initialize},
+as this is done automatically during startup.  Simply make sure to put
+any code that should run before @code{package-initialize} in the early
+init file, and any code that should run after in the primary init
+file (@xref{Init File,,, emacs, The GNU Emacs Manual}).
 @end deffn
 
 @node Simple Packages

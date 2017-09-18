@@ -28,6 +28,24 @@ When you add a new item, use the appropriate mark if you are sure it applies,
 
 * Startup Changes in Emacs 27.1
 
++++
+** Emacs can now be configured using an early init file.
+The file is called early-init.el, in `user-emacs-directory'.  It is
+loaded very early in the startup process: in particular, before
+graphical elements such as the tool bar are initialized, and before
+the package manager is initialized.
+
++++
+** Emacs now initializes package.el before loading the init-file.
+This is part of a change intended to eliminate the behavior of
+package.el inserting a call to (package-initialize) into the
+init-file, which was previously done when Emacs was started.  Users
+who do not configure package.el variables such as `package-load-list'
+and `package-user-dir' need not make any configuration changes.  Users
+who do configure such variables should place the configuration into
+the newly introduced early init file, which is loaded before
+package.el is initialized.
+
 
 * Changes in Emacs 27.1
 
