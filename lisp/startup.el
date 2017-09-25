@@ -312,6 +312,15 @@ see `tty-setup-hook'.")
 Currently this applies to: `emacs-startup-hook', `term-setup-hook',
 and `window-setup-hook'.")
 
+(defvar early-init-file nil
+  "File name, including directory, of user's early init file.
+If the file loaded had extension `.elc', and the corresponding
+source file exists, this variable contains the name of source
+file, suitable for use by functions like `custom-save-all' which
+edit the init file.  While Emacs loads and evaluates the init
+file, value is the real name of the file, regardless of whether
+or not it has the `.elc' extension.")
+
 (defvar keyboard-type nil
   "The brand of keyboard you are using.
 This variable is used to define the proper function and keypad
