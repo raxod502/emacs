@@ -880,7 +880,7 @@ If STYLE is nil, display appropriately for the terminal."
             (aset standard-display-table char nil)))))))
 
 (defun load-user-init-file
-    (compute-filename compute-alternate-filename load-defaults)
+    (compute-filename &optional compute-alternate-filename load-defaults)
   "Load a user init-file.
 COMPUTE-FILENAME is called with no arguments and should return
 the name of the init-file to load. If this file cannot be loaded,
@@ -912,7 +912,7 @@ init-file, or to a default value if loading is not possible."
                  (setq user-init-file t)
                  (load init-file-name 'noerror 'nomessage)
 
-                 (when (eq init-file-name t)
+                 (when (eq user-init-file t)
                    (let ((alt-file-name (funcall compute-alternate-filename)))
                      (load alt-file-name 'noerror 'nomessage)
 
@@ -920,13 +920,12 @@ init-file, or to a default value if loading is not possible."
                      ;; user-init-file conclusively.  Don't let it be
                      ;; set from default.el.
                      (when (eq user-init-file t)
-                       (set user-init-file init-file-name)))))
+                       (setq user-init-file init-file-name)))))
 
                ;; If we loaded a compiled file, set `user-init-file' to
                ;; the source version if that exists.
-               (when (and user-init-file
-                          (equal (file-name-extension user-init-file)
-                                 "elc"))
+               (when (equal (file-name-extension user-init-file)
+                            "elc")
                  (let* ((source (file-name-sans-extension user-init-file))
                         (alt (concat source ".el")))
                    (setq source (cond ((file-exists-p alt) alt)
