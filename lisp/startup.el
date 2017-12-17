@@ -896,7 +896,8 @@ init-file, or to a default value if loading is not possible."
         (debug-on-error-initial
          (if (eq init-file-debug t)
              'startup
-           init-file-debug)))
+           init-file-debug))
+        (orig-enable-multibyte (default-value 'enable-multibyte-characters)))
     (let ((debug-on-error debug-on-error-initial)
           ;; We create an anonymous function here so that we can call
           ;; it in different contexts depending on the value of
@@ -943,7 +944,7 @@ init-file, or to a default value if loading is not possible."
                  ;; Prevent default.el from changing the value of
                  ;; `inhibit-startup-screen'.
                  (let ((inhibit-startup-screen nil))
-                   (load "default" t t)))))))
+                   (load "default" 'noerror 'nomessage)))))))
       ;; Now call our anonymous function.
       (if init-file-debug
           ;; Do this without a `condition-case' if the user wants to
