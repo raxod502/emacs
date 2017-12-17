@@ -645,7 +645,7 @@ The following attributes are recognized:
 `:family'
 
 VALUE must be a string specifying the font family
-\(e.g. \"Monospace\") or a fontset.
+\(e.g. \"Monospace\").
 
 `:foundry'
 
@@ -761,9 +761,10 @@ from an X font name:
 
 `:font'
 
-Set font-related face attributes from VALUE.  VALUE must be a
-valid font name or font object.  Setting this attribute will also
-set the `:family', `:foundry', `:width', `:height', `:weight',
+Set font-related face attributes from VALUE.
+VALUE must be a valid font name or font object.  It can also
+be a fontset name.  Setting this attribute will also set
+the `:family', `:foundry', `:width', `:height', `:weight',
 and `:slant' attributes.
 
 `:inherit'
@@ -2361,7 +2362,7 @@ If you set `term-file-prefix' to nil, this function does nothing."
 (defface variable-pitch
   '((((type w32))
      ;; This is a workaround for an issue discussed in
-     ;; http://lists.gnu.org/archive/html/emacs-devel/2016-04/msg00746.html.
+     ;; https://lists.gnu.org/r/emacs-devel/2016-04/msg00746.html.
      ;; We need (a) the splash screen not to pick up bold-italics variant of
      ;; the font, and (b) still be able to request bold/italic/larger size
      ;; variants in the likes of EWW.
@@ -2483,7 +2484,8 @@ monospaced font, otherwise line numbers will not line up,
 and text lines might move horizontally as you move through
 the buffer."
   :version "26.1"
-  :group 'basic-faces)
+  :group 'basic-faces
+  :group 'display-line-numbers)
 
 (defface line-number-current-line
   '((t :inherit line-number))
@@ -2497,7 +2499,8 @@ the buffer.  Similarly, making this face's font different
 from that of the `line-number' face could produce such
 unwanted effects."
   :version "26.1"
-  :group 'basic-faces)
+  :group 'basic-faces
+  :group 'display-line-numbers)
 
 (defface escape-glyph
   '((((background dark)) :foreground "cyan")

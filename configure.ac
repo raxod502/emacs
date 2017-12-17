@@ -23,7 +23,7 @@ dnl  along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 AC_PREREQ(2.65)
 dnl Note this is parsed by (at least) make-dist and lisp/cedet/ede/emacs.el.
-AC_INIT(GNU Emacs, 27.0.50, bug-gnu-emacs@gnu.org)
+AC_INIT(GNU Emacs, 27.0.50, bug-gnu-emacs@gnu.org, , https://www.gnu.org/software/emacs/)
 
 dnl Set emacs_config_options to the options of 'configure', quoted for the shell,
 dnl and then quoted again for a C string.  Separate options with spaces.
@@ -232,9 +232,9 @@ AC_DEFUN([OPTION_DEFAULT_ON], [dnl
    m4_bpatsubst([with_$1], [[^0-9a-z]], [_])=$with_features])dnl
 ])dnl
 
-# FIXME: The default options '--without-mailutils --with-pop' result
-# in a movemail implementation that supports only unencrypted POP3
-# connections.  Encrypted connections should be the default.
+# For retrieving mail, unencrypted network connections are the default
+# only on native MS-Windows platforms.  (FIXME: These platforms should
+# also be secure by default.)
 
 AC_ARG_WITH([mailutils],
   [AS_HELP_STRING([--with-mailutils],
@@ -251,9 +251,16 @@ if test "$with_mailutils" = no; then
 fi
 AC_SUBST([with_mailutils])
 
-OPTION_DEFAULT_ON([pop],
-  [don't support POP mail retrieval with movemail (--without-pop or
-   --with-mailutils is recommended, as movemail POP is insecure)])
+AC_ARG_WITH([pop],
+  [AS_HELP_STRING([--with-pop],
+     [Support POP mail retrieval if Emacs movemail is used (not recommended,
+      as Emacs movemail POP is insecure).  This is the default only on
+      native MS-Windows.])],
+  [],
+  [case $host in
+     *-mingw*) with_pop=yes;;
+     *) with_pop=no-by-default;;
+   esac])
 if test "$with_pop" = yes; then
    AC_DEFINE(MAIL_USE_POP)
 fi
@@ -348,6 +355,7 @@ OPTION_DEFAULT_ON([libsystemd],[don't compile with libsystemd support])
 OPTION_DEFAULT_OFF([cairo],[compile with Cairo drawing (experimental)])
 OPTION_DEFAULT_ON([xml2],[don't compile with XML parsing support])
 OPTION_DEFAULT_ON([imagemagick],[don't compile with ImageMagick image support])
+OPTION_DEFAULT_ON([json], [don't compile with native JSON support])
 
 OPTION_DEFAULT_ON([xft],[don't use XFT for anti aliased fonts])
 OPTION_DEFAULT_ON([libotf],[don't use libotf for OpenType font support])
@@ -396,7 +404,7 @@ OPTION_DEFAULT_OFF([xwidgets],
 
 ## For the times when you want to build Emacs but don't have
 ## a suitable makeinfo, and can live without the manuals.
-dnl http://lists.gnu.org/archive/html/emacs-devel/2008-04/msg01844.html
+dnl https://lists.gnu.org/r/emacs-devel/2008-04/msg01844.html
 OPTION_DEFAULT_ON([makeinfo],[don't require makeinfo for building manuals])
 
 ## Makefile.in needs the cache file name.
@@ -522,7 +530,7 @@ fi
 dnl The name of this option is unfortunate.  It predates, and has no
 dnl relation to, the "sampling-based elisp profiler" added in 24.3.
 dnl Actually, it stops it working.
-dnl http://lists.gnu.org/archive/html/emacs-devel/2012-11/msg00393.html
+dnl https://lists.gnu.org/r/emacs-devel/2012-11/msg00393.html
 AC_ARG_ENABLE(profiling,
 [AS_HELP_STRING([--enable-profiling],
 		[build emacs with low-level, gprof profiling support.
@@ -690,6 +698,14 @@ case "${canonical}" in
 		;;
       *) ;;
     esac
+  ;;
+
+  ## QNX Neutrino
+  *-nto-qnx* )
+    opsys=qnxnto
+    test -z "$CC" && CC=qcc
+    CFLAGS="$CFLAGS -D__NO_EXT_QNX"
+    LDFLAGS="-N2MB $LDFLAGS"
   ;;
 
   ## Intel 386 machines where we don't care about the manufacturer.
@@ -948,7 +964,7 @@ AS_IF([test $gl_gcc_warnings = no],
   nw="$nw -Wbad-function-cast"      # These casts are no worse than others.
 
   # Emacs doesn't care about shadowing; see
-  # <http://lists.gnu.org/archive/html/emacs-diffs/2011-11/msg00265.html>.
+  # <https://lists.gnu.org/r/emacs-diffs/2011-11/msg00265.html>.
   nw="$nw -Wshadow"
 
   # Emacs's use of alloca inhibits protecting the stack.
@@ -1170,7 +1186,7 @@ dnl AC_PROG_LN_S sets LN_S to 'cp -pR' for MinGW, on the premise that 'ln'
 dnl doesn't support links to directories, as in "ln file dir".  But that
 dnl use is non-portable, and OTOH MinGW wants to use hard links for Emacs
 dnl executables at "make install" time.
-dnl See http://lists.gnu.org/archive/html/emacs-devel/2013-04/msg00475.html
+dnl See https://lists.gnu.org/r/emacs-devel/2013-04/msg00475.html
 dnl for more details.
 if test "$opsys" = "mingw32"; then
   LN_S="/bin/ln"
@@ -1313,10 +1329,10 @@ dnl For a long time, -znocombreloc was added to LDFLAGS rather than
 dnl LD_SWITCH_SYSTEM_TEMACS.  That is:
 dnl * inappropriate, as LDFLAGS is a user option but this is essential.
 dnl   Eg "make LDFLAGS=... all" could run into problems,
-dnl   http://bugs.debian.org/684788
+dnl   https://bugs.debian.org/684788
 dnl * unnecessary, since temacs is the only thing that actually needs it.
 dnl   Indeed this is where it was originally, prior to:
-dnl   http://lists.gnu.org/archive/html/emacs-pretest-bug/2004-03/msg00170.html
+dnl   https://lists.gnu.org/r/emacs-pretest-bug/2004-03/msg00170.html
 if test x$GCC = xyes; then
   LDFLAGS_NOCOMBRELOC="-Wl,-znocombreloc"
 else
@@ -1391,10 +1407,6 @@ case "$opsys" in
    # emacs, instead of the generic ELF dump code found in unexelf.c.
    # The resulting binary has a complete symbol table, and is better
    # for debugging and other observability tools (debuggers, pstack, etc).
-   #
-   # If you encounter a problem using dldump(), please consider sending
-   # a message to the OpenSolaris tools-linking mailing list:
-   #      http://mail.opensolaris.org/mailman/listinfo/tools-linking
    #
    # It is likely that dldump() works with older Solaris too, but this has
    # not been tested, so for now this change is for Solaris 10 or newer.
@@ -1503,6 +1515,8 @@ case "$opsys" in
   freebsd|dragonfly) LIBS_SYSTEM="-lutil" ;;
 
   hpux*) LIBS_SYSTEM="-l:libdld.sl" ;;
+
+  qnxnto) LIBS_SYSTEM="-lsocket" ;;
 
   sol2*) LIBS_SYSTEM="-lsocket -lnsl" ;;
 
@@ -2077,15 +2091,15 @@ if test "${HAVE_W32}" = "yes"; then
   AC_SUBST(comma_space_version)
   AC_CONFIG_FILES([nt/emacs.rc nt/emacsclient.rc])
   if test "${opsys}" = "cygwin"; then
-    W32_LIBS="$W32_LIBS -lkernel32 -luser32 -lgdi32 -lole32 -lcomdlg32"
-    W32_LIBS="$W32_LIBS -lusp10 -lcomctl32 -lwinspool"
+    W32_LIBS="$W32_LIBS -lkernel32 -luser32 -lusp10 -lgdi32"
+    W32_LIBS="$W32_LIBS -lole32 -lcomdlg32 -lcomctl32 -lwinspool"
     # Tell the linker that emacs.res is an object (which we compile from
     # the rc file), not a linker script.
     W32_RES_LINK="-Wl,emacs.res"
   else
     W32_OBJ="$W32_OBJ w32.o w32console.o w32heap.o w32inevt.o w32proc.o"
-    W32_LIBS="$W32_LIBS -lwinmm -lgdi32 -lcomdlg32"
-    W32_LIBS="$W32_LIBS -lmpr -lwinspool -lole32 -lcomctl32 -lusp10"
+    W32_LIBS="$W32_LIBS -lwinmm -lusp10 -lgdi32 -lcomdlg32"
+    W32_LIBS="$W32_LIBS -lmpr -lwinspool -lole32 -lcomctl32"
     W32_RES_LINK="\$(EMACSRES)"
     CLIENTRES="emacsclient.res"
     CLIENTW="emacsclientw\$(EXEEXT)"
@@ -2207,7 +2221,8 @@ test "$CANNOT_DUMP" = yes ||
 case "$opsys" in
   ## darwin ld insists on the use of malloc routines in the System framework.
   darwin | mingw32 | nacl | sol2-10) ;;
-  cygwin) hybrid_malloc=yes
+  cygwin | qnxnto | freebsd)
+	  hybrid_malloc=yes
           system_malloc= ;;
   *) test "$ac_cv_func_sbrk" = yes && system_malloc=$emacs_cv_sanitize_address;;
 esac
@@ -2644,7 +2659,7 @@ if test x"$pkg_check_gtk" = xyes; then
        closing open displays.  This is no problem if you just use
        one display, but if you use more than one and close one of them
        Emacs may crash.
-       See http://bugzilla.gnome.org/show_bug.cgi?id=85715]])
+       See https://bugzilla.gnome.org/show_bug.cgi?id=85715]])
   fi
 
 fi
@@ -2855,6 +2870,27 @@ fi
 
 AC_SUBST(LIBSYSTEMD_LIBS)
 AC_SUBST(LIBSYSTEMD_CFLAGS)
+
+HAVE_JSON=no
+JSON_OBJ=
+
+if test "${with_json}" = yes; then
+  EMACS_CHECK_MODULES([JSON], [jansson >= 2.7],
+    [HAVE_JSON=yes], [HAVE_JSON=no])
+  if test "${HAVE_JSON}" = yes; then
+    AC_DEFINE(HAVE_JSON, 1, [Define if using Jansson.])
+    JSON_OBJ=json.o
+  fi
+
+  # Windows loads libjansson dynamically
+  if test "${opsys}" = "mingw32"; then
+    JSON_LIBS=
+  fi
+fi
+
+AC_SUBST(JSON_LIBS)
+AC_SUBST(JSON_CFLAGS)
+AC_SUBST(JSON_OBJ)
 
 NOTIFY_OBJ=
 NOTIFY_SUMMARY=no
@@ -3410,7 +3446,9 @@ AC_SUBST(LIBXPM)
 ### Use -ljpeg if available, unless '--with-jpeg=no'.
 HAVE_JPEG=no
 LIBJPEG=
-if test "${with_jpeg}" != "no"; then
+if test "${NS_IMPL_COCOA}" = yes; then
+  : # Cocoa provides its own jpeg support, so do nothing.
+elif test "${with_jpeg}" != "no"; then
   AC_CACHE_CHECK([for jpeglib 6b or later],
     [emacs_cv_jpeglib],
     [OLD_LIBS=$LIBS
@@ -3545,7 +3583,7 @@ HAVE_PNG=no
 LIBPNG=
 PNG_CFLAGS=
 if test "${NS_IMPL_COCOA}" = yes; then
-  : # Nothing to do
+  : # Cocoa provides its own png support, so do nothing.
 elif test "${with_png}" != no; then
   # mingw32 loads the library dynamically.
   if test "$opsys" = mingw32; then
@@ -4030,9 +4068,8 @@ AC_CACHE_CHECK([for library containing tputs], [emacs_cv_tputs_lib],
 [if test "${opsys}" = "mingw32"; then
   emacs_cv_tputs_lib='none required'
 else
-  # Maybe curses should be tried earlier?
-  # See https://debbugs.gnu.org/9736#35
-  for tputs_library in '' tinfo ncurses terminfo termcap curses; do
+  # curses precedes termcap because of AIX (Bug#9736#35) and OpenIndiana.
+  for tputs_library in '' tinfo ncurses terminfo curses termcap; do
     OLIBS=$LIBS
     if test -z "$tputs_library"; then
       emacs_cv_tputs_lib='none required'
@@ -4051,7 +4088,7 @@ fi])
 AS_CASE(["$emacs_cv_tputs_lib"],
   [no], [AC_MSG_ERROR([The required function 'tputs' was not found in any library.
 The following libraries were tried (in order):
-  libtinfo, libncurses, libterminfo, libtermcap, libcurses
+  libtinfo, libncurses, libterminfo, libcurses, libtermcap
 Please try installing whichever of these libraries is most appropriate
 for your system, together with its header files.
 For example, a libncurses-dev(el) or similar package.])],
@@ -4457,7 +4494,6 @@ emacs_broken_SIGIO=no
 
 case $opsys in
   dnl SIGIO exists, but the feature doesn't work in the way Emacs needs.
-  dnl See eg <http://article.gmane.org/gmane.os.openbsd.ports/46831>.
   hpux* | nacl | openbsd | sol2* | unixware )
     emacs_broken_SIGIO=yes
     ;;
@@ -4602,7 +4638,7 @@ case $opsys in
     AC_DEFINE(PTY_TTY_NAME_SPRINTF, [])
     ;;
 
-  gnu | openbsd )
+  gnu | openbsd | qnxnto )
     AC_DEFINE(FIRST_PTY_LETTER, ['p'])
     ;;
 
@@ -5103,22 +5139,6 @@ else
 fi
 AC_SUBST(LIBXMENU)
 
-AC_CACHE_CHECK([for struct alignment],
-  [emacs_cv_struct_alignment],
-  [AC_COMPILE_IFELSE(
-     [AC_LANG_PROGRAM([[#include <stddef.h>
-			struct __attribute__ ((aligned (8))) s { char c; };
-			struct t { char c; struct s s; };
-			char verify[offsetof (struct t, s) == 8 ? 1 : -1];
-		      ]])],
-     [emacs_cv_struct_alignment=yes],
-     [emacs_cv_struct_alignment=no])])
-if test "$emacs_cv_struct_alignment" = yes; then
-  AC_DEFINE([HAVE_STRUCT_ATTRIBUTE_ALIGNED], 1,
-    [Define to 1 if 'struct __attribute__ ((aligned (N)))' aligns the
-     structure to an N-byte boundary.])
-fi
-
 if test "${GNU_MALLOC}" = "yes" ; then
   AC_DEFINE(GNU_MALLOC, 1,
 	    [Define to 1 if you want to use the GNU memory allocator.])
@@ -5368,7 +5388,7 @@ emacs_config_features=
 for opt in XAW3D XPM JPEG TIFF GIF PNG RSVG CAIRO IMAGEMAGICK SOUND GPM DBUS \
   GCONF GSETTINGS NOTIFY ACL LIBSELINUX GNUTLS LIBXML2 FREETYPE M17N_FLT \
   LIBOTF XFT ZLIB TOOLKIT_SCROLL_BARS X_TOOLKIT OLDXMENU X11 NS MODULES \
-  XWIDGETS LIBSYSTEMD CANNOT_DUMP LCMS2; do
+  XWIDGETS LIBSYSTEMD JSON CANNOT_DUMP LCMS2; do
 
     case $opt in
       CANNOT_DUMP) eval val=\${$opt} ;;
@@ -5418,6 +5438,7 @@ AS_ECHO(["  Does Emacs use -lXaw3d?                                 ${HAVE_XAW3D
   Does Emacs use -lotf?                                   ${HAVE_LIBOTF}
   Does Emacs use -lxft?                                   ${HAVE_XFT}
   Does Emacs use -lsystemd?                               ${HAVE_LIBSYSTEMD}
+  Does Emacs use -ljansson?                               ${HAVE_JSON}
   Does Emacs directly use zlib?                           ${HAVE_ZLIB}
   Does Emacs have dynamic modules support?                ${HAVE_MODULES}
   Does Emacs use toolkit scroll bars?                     ${USE_TOOLKIT_SCROLL_BARS}
@@ -5568,6 +5589,12 @@ if test ! "$with_mailutils"; then
     AC_MSG_WARN([This configuration installs a 'movemail' program
 that retrieves POP3 email via only insecure channels.
 To omit insecure POP3, you can use '$0 --without-pop'.])
+  elif test "$with_pop" = no-by-default; then
+    AC_MSG_WARN([This configuration installs a 'movemail' program
+that does not retrieve POP3 email.  By default, Emacs 25 and earlier
+installed a 'movemail' program that retrieved POP3 email via only
+insecure channels, a practice that is no longer recommended but that
+you can continue to support by using '$0 --with-pop'.])
   fi
 
   case $opsys in
@@ -5579,7 +5606,7 @@ To omit insecure POP3, you can use '$0 --without-pop'.])
       case `(movemail --version) 2>/dev/null` in
 	*Mailutils*) ;;
 	*) emacs_fix_movemail="install GNU Mailutils
-<http://mailutils.org> and $emacs_fix_movemail";;
+<https://mailutils.org> and $emacs_fix_movemail";;
       esac
       AC_MSG_NOTICE([You might want to $emacs_fix_movemail.]);;
   esac

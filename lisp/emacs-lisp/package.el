@@ -101,7 +101,7 @@
 ;; Michael Olson <mwolson@member.fsf.org>
 ;; Sebastian Tennant <sebyte@smolny.plus.com>
 ;; Stefan Monnier <monnier@iro.umontreal.ca>
-;; Vinicius Jose Latorre <viniciusjl@ig.com.br>
+;; Vinicius Jose Latorre <viniciusjl.gnu@gmail.com>
 ;; Phil Hagelberg <phil@hagelb.org>
 
 ;;; ToDo:
@@ -961,17 +961,12 @@ This assumes that `pkg-desc' has already been activated with
 (defun package-read-from-string (str)
   "Read a Lisp expression from STR.
 Signal an error if the entire string was not used."
-  (let* ((read-data (read-from-string str))
-         (more-left
-          (condition-case nil
-              ;; The call to `ignore' suppresses a compiler warning.
-              (progn (ignore (read-from-string
-                              (substring str (cdr read-data))))
-                     t)
-            (end-of-file nil))))
-    (if more-left
-        (error "Can't read whole string")
-      (car read-data))))
+  (pcase-let ((`(,expr . ,offset) (read-from-string str)))
+    (condition-case ()
+        ;; The call to `ignore' suppresses a compiler warning.
+        (progn (ignore (read-from-string str offset))
+               (error "Can't read whole string"))
+      (end-of-file expr))))
 
 (defun package--prepare-dependencies (deps)
   "Turn DEPS into an acceptable list of dependencies.
@@ -2191,6 +2186,7 @@ Otherwise no newline is inserted."
          (archive (if desc (package-desc-archive desc)))
          (extras (and desc (package-desc-extras desc)))
          (homepage (cdr (assoc :url extras)))
+         (commit (cdr (assoc :commit extras)))
          (keywords (if desc (package-desc--keywords desc)))
          (built-in (eq pkg-dir 'builtin))
          (installable (and archive (not built-in)))
@@ -2263,6 +2259,8 @@ Otherwise no newline is inserted."
     (and version
          (package--print-help-section "Version"
            (package-version-join version)))
+    (when commit
+      (package--print-help-section "Commit" commit))
     (when desc
       (package--print-help-section "Summary"
         (package-desc-summary desc)))
@@ -3325,7 +3323,9 @@ This function is called after `package-refresh-contents'."
   "Display a list of packages.
 This first fetches the updated list of packages before
 displaying, unless a prefix argument NO-FETCH is specified.
-The list is displayed in a buffer named `*Packages*'."
+The list is displayed in a buffer named `*Packages*', and
+includes the package's version, availability status, and a
+short description."
   (interactive "P")
   (require 'finder-inf nil t)
   ;; Initialize the package system if necessary.

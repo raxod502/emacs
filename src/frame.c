@@ -35,6 +35,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "buffer.h"
 /* These help us bind and responding to switch-frame events.  */
 #include "keyboard.h"
+#include "ptr-bounds.h"
 #include "frame.h"
 #include "blockinput.h"
 #include "termchar.h"
@@ -1472,7 +1473,11 @@ DEFUN ("frame-list", Fframe_list, Sframe_list,
   Lisp_Object frames;
   frames = Fcopy_sequence (Vframe_list);
 #ifdef HAVE_WINDOW_SYSTEM
-  if (FRAMEP (tip_frame))
+  if (FRAMEP (tip_frame)
+#ifdef USE_GTK
+      && !NILP (Fframe_parameter (tip_frame, Qtooltip))
+#endif
+      )
     frames = Fdelq (tip_frame, frames);
 #endif
   return frames;
@@ -1603,6 +1608,8 @@ next_frame (Lisp_Object frame, Lisp_Object minibuf)
   Lisp_Object f, tail;
   int passed = 0;
 
+  eassume (CONSP (Vframe_list));
+
   while (passed < 2)
     FOR_EACH_FRAME (tail, f)
       {
@@ -1624,6 +1631,8 @@ static Lisp_Object
 prev_frame (Lisp_Object frame, Lisp_Object minibuf)
 {
   Lisp_Object f, tail, prev = Qnil;
+
+  eassume (CONSP (Vframe_list));
 
   FOR_EACH_FRAME (tail, f)
     {
@@ -1910,12 +1919,14 @@ delete_frame (Lisp_Object frame, Lisp_Object force)
   if (f == sf)
     {
       Lisp_Object tail;
+      eassume (CONSP (Vframe_list));
 
       /* Look for another visible frame on the same terminal.
 	 Do not call next_frame here because it may loop forever.
 	 See https://debbugs.gnu.org/cgi/bugreport.cgi?bug=15025.  */
       FOR_EACH_FRAME (tail, frame1)
 	if (!EQ (frame, frame1)
+	    && NILP (Fframe_parameter (frame1, Qtooltip))
 	    && (FRAME_TERMINAL (XFRAME (frame))
 		== FRAME_TERMINAL (XFRAME (frame1)))
 	    && FRAME_VISIBLE_P (XFRAME (frame1)))
@@ -1926,7 +1937,9 @@ delete_frame (Lisp_Object frame, Lisp_Object force)
 	{
 	  FOR_EACH_FRAME (tail, frame1)
 	    {
-	      if (! EQ (frame, frame1) && FRAME_LIVE_P (XFRAME (frame1)))
+	      if (!EQ (frame, frame1)
+		  && FRAME_LIVE_P (XFRAME (frame1))
+		  && NILP (Fframe_parameter (frame1, Qtooltip)))
 		{
 		  /* Do not change a text terminal's top-frame.  */
 		  struct frame *f1 = XFRAME (frame1);
@@ -2029,7 +2042,7 @@ delete_frame (Lisp_Object frame, Lisp_Object force)
 #if defined (USE_X_TOOLKIT) || defined (USE_GTK)
     /* FIXME: Deleting the terminal crashes emacs because of a GTK
        bug.
-       http://lists.gnu.org/archive/html/emacs-devel/2011-10/msg00363.html */
+       https://lists.gnu.org/r/emacs-devel/2011-10/msg00363.html */
 
     /* Since a similar behavior was observed on the Lucid and Motif
        builds (see Bug#5802, Bug#21509, Bug#23499, Bug#27816), we now
@@ -2535,10 +2548,35 @@ displayed in the terminal.  */)
 DEFUN ("iconify-frame", Ficonify_frame, Siconify_frame,
        0, 1, "",
        doc: /* Make the frame FRAME into an icon.
-If omitted, FRAME defaults to the currently selected frame.  */)
+If omitted, FRAME defaults to the currently selected frame.
+
+If FRAME is a child frame, consult the variable `iconify-child-frame'
+for how to proceed.  */)
   (Lisp_Object frame)
 {
   struct frame *f = decode_live_frame (frame);
+#ifdef HAVE_WINDOW_SYSTEM
+  Lisp_Object parent = f->parent_frame;
+
+  if (!NILP (parent))
+    {
+      if (NILP (iconify_child_frame))
+	/* Do nothing.  */
+	return Qnil;
+      else if (EQ (iconify_child_frame, Qiconify_top_level))
+	{
+	  /* Iconify top level frame instead (the default).  */
+	  Ficonify_frame (parent);
+	  return Qnil;
+	}
+      else if (EQ (iconify_child_frame, Qmake_invisible))
+	{
+	  /* Make frame invisible instead.  */
+	  Fmake_frame_invisible (frame, Qnil);
+	  return Qnil;
+	}
+    }
+#endif	/* HAVE_WINDOW_SYSTEM */
 
   /* Don't allow minibuf_window to remain on an iconified frame.  */
   check_minibuf_window (frame, EQ (minibuf_window, selected_window));
@@ -4780,6 +4818,8 @@ xrdb_get_resource (XrmDatabase rdb, Lisp_Object attribute, Lisp_Object class, Li
   USE_SAFE_ALLOCA;
   char *name_key = SAFE_ALLOCA (name_keysize + class_keysize);
   char *class_key = name_key + name_keysize;
+  name_key = ptr_bounds_clip (name_key, name_keysize);
+  class_key = ptr_bounds_clip (class_key, class_keysize);
 
   /* Start with emacs.FRAMENAME for the name (the specific one)
      and with `Emacs' for the class key (the general one).  */
@@ -4858,6 +4898,8 @@ x_get_resource_string (const char *attribute, const char *class)
   ptrdiff_t class_keysize = sizeof (EMACS_CLASS) - 1 + strlen (class) + 2;
   char *name_key = SAFE_ALLOCA (name_keysize + class_keysize);
   char *class_key = name_key + name_keysize;
+  name_key = ptr_bounds_clip (name_key, name_keysize);
+  class_key = ptr_bounds_clip (class_key, class_keysize);
 
   esprintf (name_key, "%s.%s", SSDATA (Vinvocation_name), attribute);
   sprintf (class_key, "%s.%s", EMACS_CLASS, class);
@@ -5713,6 +5755,8 @@ syms_of_frame (void)
   DEFSYM (Qheight_only, "height-only");
   DEFSYM (Qleft_only, "left-only");
   DEFSYM (Qtop_only, "top-only");
+  DEFSYM (Qiconify_top_level, "iconify-top-level");
+  DEFSYM (Qmake_invisible, "make-invisible");
 
   {
     int i;
@@ -5868,16 +5912,11 @@ or call the function `tool-bar-mode'.  */);
 #endif
 
   DEFVAR_KBOARD ("default-minibuffer-frame", Vdefault_minibuffer_frame,
-		 doc: /* Minibufferless frames use this frame's minibuffer.
-Emacs cannot create minibufferless frames unless this is set to an
-appropriate surrogate.
-
-Emacs consults this variable only when creating minibufferless
-frames; once the frame is created, it sticks with its assigned
-minibuffer, no matter what this variable is set to.  This means that
-this variable doesn't necessarily say anything meaningful about the
-current set of frames, or where the minibuffer is currently being
-displayed.
+		 doc: /* Minibuffer-less frames by default use this frame's minibuffer.
+Emacs consults this variable only when creating a minibuffer-less frame
+and no explicit minibuffer window has been specified for that frame via
+the `minibuffer' frame parameter.  Once such a frame has been created,
+setting this variable does not change that frame's previous association.
 
 This variable is local to the current terminal and cannot be buffer-local.  */);
 
@@ -6015,6 +6054,21 @@ are not applied when showing a tooltip in a reused frame.
 This variable is effective only with the X toolkit (and there only when
 Gtk+ tooltips are not used) and on Windows.  */);
   tooltip_reuse_hidden_frame = false;
+
+  DEFVAR_LISP ("iconify-child-frame", iconify_child_frame,
+	       doc: /* How to handle iconification of child frames.
+This variable tells Emacs how to proceed when it is asked to iconify a
+child frame.  If it is nil, `iconify-frame' will do nothing when invoked
+on a child frame.  If it is `iconify-top-level', Emacs will try to
+iconify the top level frame associated with this child frame instead.
+If it is `make-invisible', Emacs will try to make this child frame
+invisible instead.
+
+Any other value means to try iconifying the child frame.  Since such an
+attempt is not honored by all window managers and may even lead to
+making the child frame unresponsive to user actions, the default is to
+iconify the top level frame instead.  */);
+  iconify_child_frame = Qiconify_top_level;
 
   staticpro (&Vframe_list);
 

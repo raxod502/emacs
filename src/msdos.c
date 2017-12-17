@@ -15,7 +15,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
+along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 /* Contributed by Morten Welinder */
 /* New display, keyboard, and mouse control by Kim F. Storm */
@@ -3943,6 +3943,8 @@ careadlinkat (int fd, char const *filename,
 int
 faccessat (int dirfd, const char * path, int mode, int flags)
 {
+  char fullname[MAXPATHLEN];
+
   /* We silently ignore FLAGS.  */
   flags = flags;
 

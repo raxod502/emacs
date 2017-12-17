@@ -82,7 +82,6 @@
 (declare-function org-reverse-string "org" (string))
 (declare-function org-set-outline-overlay-data "org" (data))
 (declare-function org-show-context "org" (&optional key))
-(declare-function org-split-string "org" (string &optional separators))
 (declare-function org-src-coderef-format "org-src" (element))
 (declare-function org-src-coderef-regexp "org-src" (fmt &optional label))
 (declare-function org-table-align "org-table" ())
@@ -179,6 +178,14 @@ This string must include a \"%s\" which will be replaced by the results."
   :package-version '(Org . "9.0")
   :safe #'booleanp)
 
+(defcustom org-babel-uppercase-example-markers nil
+  "When non-nil, begin/end example markers will be inserted in upper case."
+  :group 'org-babel
+  :type 'boolean
+  :version "26.1"
+  :package-version '(Org . "9.1")
+  :safe #'booleanp)
+
 (defun org-babel-noweb-wrap (&optional regexp)
   (concat org-babel-noweb-wrap-start
 	  (or regexp "\\([^ \t\n].+?[^ \t]\\|[^ \t\n]\\)")
@@ -234,11 +241,9 @@ should be asked whether to allow evaluation."
 	 (query (or (equal eval "query")
 		    (and export (equal eval "query-export"))
 		    (if (functionp org-confirm-babel-evaluate)
-			(save-excursion
-			  (goto-char (nth 5 info))
-			  (funcall org-confirm-babel-evaluate
-				   ;; language, code block body
-				   (nth 0 info) (nth 1 info)))
+			(funcall org-confirm-babel-evaluate
+				 ;; Language, code block body.
+				 (nth 0 info) (nth 1 info))
 		      org-confirm-babel-evaluate))))
     (cond
      (noeval nil)
@@ -1760,15 +1765,17 @@ to `org-babel-named-src-block-regexp'."
 
 (defun org-babel-src-block-names (&optional file)
   "Returns the names of source blocks in FILE or the current buffer."
-  (when file (find-file file))
-  (save-excursion
-    (goto-char (point-min))
-    (let* ((re (org-babel-named-src-block-regexp-for-name))
-	   (names (and (looking-at re)
-		       (list (match-string-no-properties 9)))))
-      (while (ignore-errors (org-next-block 1 nil re))
-	(push (match-string-no-properties 9) names))
-      names)))
+  (with-current-buffer (if file (find-file-noselect file) (current-buffer))
+    (org-with-point-at 1
+      (let ((regexp "^[ \t]*#\\+begin_src ")
+	    (case-fold-search t)
+	    (names nil))
+	(while (re-search-forward regexp nil t)
+	  (let ((element (org-element-at-point)))
+	    (when (eq 'src-block (org-element-type element))
+	      (let ((name (org-element-property :name element)))
+		(when name (push name names))))))
+	names))))
 
 ;;;###autoload
 (defun org-babel-goto-named-result (name)
@@ -2348,7 +2355,7 @@ INFO may provide the values of these header arguments (in the
 		   ((assq :wrap (nth 2 info))
 		    (let ((name (or (cdr (assq :wrap (nth 2 info))) "RESULTS")))
 		      (funcall wrap (concat "#+BEGIN_" name)
-			       (concat "#+END_" (car (org-split-string name)))
+			       (concat "#+END_" (car (split-string name)))
 			       nil nil (concat "{{{results(@@" name ":") "@@)}}}")))
 		   ((member "html" result-params)
 		    (funcall wrap "#+BEGIN_EXPORT html" "#+END_EXPORT" nil nil
@@ -2411,8 +2418,11 @@ INFO may provide the values of these header arguments (in the
         (goto-char location)
 	(when (looking-at (concat org-babel-result-regexp ".*$"))
 	  (delete-region
-	   (if keep-keyword (1+ (match-end 0)) (1- (match-beginning 0)))
-	   (progn (forward-line 1) (org-babel-result-end))))))))
+	   (if keep-keyword (line-beginning-position 2)
+	     (save-excursion
+	       (skip-chars-backward " \r\t\n")
+	       (line-beginning-position 2)))
+	   (progn (forward-line) (org-babel-result-end))))))))
 
 (defun org-babel-remove-inline-result (&optional datum)
   "Remove the result of the current inline-src-block or babel call.
@@ -2449,24 +2459,21 @@ in the buffer."
 
 (defun org-babel-result-end ()
   "Return the point at the end of the current set of results."
-  (save-excursion
-    (cond
-     ((org-at-table-p) (progn (goto-char (org-table-end)) (point)))
-     ((org-at-item-p) (let* ((struct (org-list-struct))
-			     (prvs (org-list-prevs-alist struct)))
-			(org-list-get-list-end (point-at-bol) struct prvs)))
-     ((let ((case-fold-search t)) (looking-at "^\\([ \t]*\\):results:"))
-      (progn (re-search-forward (concat "^" (match-string 1) ":END:"))
-	     (forward-char 1) (point)))
-     (t
-      (let ((case-fold-search t))
-	(if (looking-at (concat "[ \t]*#\\+begin_\\([^ \t\n\r]+\\)"))
-	    (progn (re-search-forward (concat "[ \t]*#\\+end_" (match-string 1))
-				      nil t)
-		   (forward-char 1))
-	  (while (looking-at "[ \t]*\\(: \\|:$\\|\\[\\[\\)")
-	    (forward-line 1))))
-      (point)))))
+  (cond ((looking-at-p "^[ \t]*$") (point)) ;no result
+	((looking-at-p (format "^[ \t]*%s[ \t]*$" org-bracket-link-regexp))
+	 (line-beginning-position 2))
+	(t
+	 (let ((element (org-element-at-point)))
+	   (if (memq (org-element-type element)
+		     ;; Possible results types.
+		     '(drawer example-block export-block fixed-width item
+			      plain-list src-block table))
+	       (save-excursion
+		 (goto-char (min (point-max) ;for narrowed buffers
+				 (org-element-property :end element)))
+		 (skip-chars-backward " \r\t\n")
+		 (line-beginning-position 2))
+	     (point))))))
 
 (defun org-babel-result-to-file (result &optional description)
   "Convert RESULT into an `org-mode' link with optional DESCRIPTION.
@@ -2483,15 +2490,12 @@ file's directory then expand relative links."
 	      result)
 	    (if description (concat "[" description "]") ""))))
 
-(defvar org-babel-capitalize-example-region-markers nil
-  "Make true to capitalize begin/end example markers inserted by code blocks.")
-
 (defun org-babel-examplify-region (beg end &optional results-switches inline)
   "Comment out region using the inline `==' or `: ' org example quote."
   (interactive "*r")
   (let ((maybe-cap
 	 (lambda (str)
-	   (if org-babel-capitalize-example-region-markers (upcase str) str))))
+	   (if org-babel-uppercase-example-markers (upcase str) str))))
     (if inline
 	(save-excursion
 	  (goto-char beg)

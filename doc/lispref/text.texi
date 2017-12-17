@@ -54,11 +54,14 @@ the character after point.
 * Registers::        How registers are implemented.  Accessing the text or
                        position stored in a register.
 * Transposition::    Swapping two portions of a buffer.
+* Replacing::        Replacing the text of one buffer with the text
+                       of another buffer.
 * Decompression::    Dealing with compressed data.
 * Base 64::          Conversion to or from base 64 encoding.
 * Checksum/Hash::    Computing cryptographic hashes.
 * GnuTLS Cryptography:: Cryptographic algorithms imported from GnuTLS.
 * Parsing HTML/XML:: Parsing HTML and XML.
+* Parsing JSON::     Parsing and generating JSON values.
 * Atomic Changes::   Installing several buffer changes atomically.
 * Change Hooks::     Supplying functions to be run when text is changed.
 @end menu
@@ -523,9 +526,17 @@ responsible for calling @code{blink-paren-function} when the inserted
 character has close parenthesis syntax (@pxref{Blinking}).
 
 @vindex post-self-insert-hook
+@vindex self-insert-uses-region-functions
 The final thing this command does is to run the hook
 @code{post-self-insert-hook}.  You could use this to automatically
-reindent text as it is typed, for example.
+reindent text as it is typed, for example.  If any function on this
+hook needs to act on the region (@pxref{The Region}), it should make
+sure Delete Selection mode (@pxref{Using Region, Delete Selection, ,
+emacs, The GNU Emacs Manual}) doesn't delete the region before
+@code{post-self-insert-hook} functions are invoked.  The way to do so
+is to add a function that returns @code{nil} to
+@code{self-insert-uses-region-functions}, a special hook that tells
+Delete Selection mode it should not delete the region.
 
 Do not try substituting your own definition of
 @code{self-insert-command} for the standard one.  The editor command
@@ -1884,10 +1895,10 @@ prefix or @code{nil}, meaning it has failed to determine a prefix.
 @cindex filling, automatic
 @cindex Auto Fill mode
 
-@c FIXME: I don't think any of the variables below is a/an normal/abnormal hook.
-  Auto Fill mode is a minor mode that fills lines automatically as text
-is inserted.  This section describes the hook used by Auto Fill mode.
-For a description of functions that you can call explicitly to fill and
+Auto Fill mode is a minor mode that fills lines automatically as text is
+inserted.  @xref{Auto Fill,,, emacs, The GNU Emacs Manual}.  This
+section describes some variables used by Auto Fill mode.  For a
+description of functions that you can call explicitly to fill and
 justify existing text, see @ref{Filling}.
 
   Auto Fill mode also enables the functions that change the margins and
@@ -1896,11 +1907,11 @@ justification style to refill portions of the text.  @xref{Margins}.
 @defvar auto-fill-function
 The value of this buffer-local variable should be a function (of no
 arguments) to be called after self-inserting a character from the table
-@code{auto-fill-chars}.  It may be @code{nil}, in which case nothing
-special is done in that case.
+@code{auto-fill-chars}, see below.  It may be @code{nil}, in which case
+nothing special is done in that case.
 
-The value of @code{auto-fill-function} is @code{do-auto-fill} when
-Auto-Fill mode is enabled.  That is a function whose sole purpose is to
+The value of @code{auto-fill-function} is @code{do-auto-fill} when Auto
+Fill mode is enabled.  That is a function whose sole purpose is to
 implement the usual strategy for breaking a line.
 @end defvar
 
@@ -1916,6 +1927,14 @@ A char table of characters which invoke @code{auto-fill-function} when
 self-inserted---space and newline in most language environments.  They
 have an entry @code{t} in the table.
 @end defvar
+
+@defopt comment-auto-fill-only-comments
+This variable, if non-@code{nil}, means to fill lines automatically
+within comments only.  More precisely, this means that if a comment
+syntax was defined for the current buffer, then self-inserting a
+character outside of a comment will not call @code{auto-fill-function}.
+@end defopt
+
 
 @node Sorting
 @section Sorting Text
@@ -4328,6 +4347,28 @@ is non-@code{nil}, @code{transpose-regions} does not do this---it leaves
 all markers unrelocated.
 @end defun
 
+@node Replacing
+@section Replacing Buffer Text
+
+  You can use the following function to replace the text of one buffer
+with the text of another buffer:
+
+@deffn Command replace-buffer-contents source
+This function replaces the accessible portion of the current buffer
+with the accessible portion of the buffer @var{source}.  @var{source}
+may either be a buffer object or the name of a buffer.  When
+@code{replace-buffer-contents} succeeds, the text of the accessible
+portion of the current buffer will be equal to the text of the
+accessible portion of the @var{source} buffer.  This function attempts
+to keep point, markers, text properties, and overlays in the current
+buffer intact.  One potential case where this behavior is useful is
+external code formatting programs: they typically write the
+reformatted text into a temporary buffer or file, and using
+@code{delete-region} and @code{insert-buffer-substring} would destroy
+these properties.  However, the latter combination is typically
+faster.  @xref{Deletion}, and @ref{Insertion}.
+@end deffn
+
 @node Decompression
 @section Dealing With Compressed Data
 
@@ -4512,9 +4553,9 @@ It should be somewhat more efficient on larger buffers than
 @cindex symmetric cipher
 @cindex cipher, symmetric
 
-If compiled with GnuTLS, Emacs offers built-in cryptographic support.
-Following the GnuTLS API terminology, the available tools are digests,
-MACs, symmetric ciphers, and AEAD ciphers.
+  If compiled with GnuTLS, Emacs offers built-in cryptographic
+support.  Following the GnuTLS API terminology, the available tools
+are digests, MACs, symmetric ciphers, and AEAD ciphers.
 
 The terms used herein, such as IV (Initialization Vector), require
 some familiarity with cryptography and will not be defined in detail.
@@ -4532,7 +4573,7 @@ structure of the GnuTLS library.
 @cindex format of gnutls cryptography inputs
 @cindex gnutls cryptography inputs format
 
-The inputs to GnuTLS cryptographic functions can be specified in
+  The inputs to GnuTLS cryptographic functions can be specified in
 several ways, both as primitive Emacs Lisp types or as lists.
 
 The list form is currently similar to how @code{md5} and
@@ -4699,8 +4740,15 @@ IV used.
 @section Parsing HTML and XML
 @cindex parsing html
 
-When Emacs is compiled with libxml2 support, the following functions
-are available to parse HTML or XML text into Lisp object trees.
+  Emacs can be compiled with built-in libxml2 support.
+
+@defun libxml-available-p
+This function returns non-@code{nil} if built-in libxml2 support is
+available in this Emacs session.
+@end defun
+
+When libxml2 support is available, the following functions can be used
+to parse HTML or XML text into Lisp object trees.
 
 @defun libxml-parse-html-region start end &optional base-url discard-comments
 This function parses the text between @var{start} and @var{end} as
@@ -4767,9 +4815,9 @@ about syntax).
 @cindex DOM
 @cindex Document Object Model
 
-The @acronym{DOM} returned by @code{libxml-parse-html-region} (and the
-other @acronym{XML} parsing functions) is a tree structure where each
-node has a node name (called a @dfn{tag}), and optional key/value
+  The @acronym{DOM} returned by @code{libxml-parse-html-region} (and
+the other @acronym{XML} parsing functions) is a tree structure where
+each node has a node name (called a @dfn{tag}), and optional key/value
 @dfn{attribute} list, and then a list of @dfn{child nodes}.  The child
 nodes are either strings or @acronym{DOM} objects.
 
@@ -4885,6 +4933,92 @@ Utility functions:
 Pretty-print @var{dom} at point.  If @var{remove-empty}, don't print
 textual nodes that just contain white-space.
 @end table
+
+
+@node Parsing JSON
+@section Parsing and generating JSON values
+@cindex JSON
+
+  When Emacs is compiled with JSON support, it provides a couple of
+functions to convert between Lisp objects and JSON values.  Any JSON
+value can be converted to a Lisp object, but not vice versa.
+Specifically:
+
+@itemize
+
+@item
+JSON has a couple of keywords: @code{null}, @code{false}, and
+@code{true}.  These are represented in Lisp using the keywords
+@code{:null}, @code{:false}, and @code{t}, respectively.
+
+@item
+JSON only has floating-point numbers.  They can represent both Lisp
+integers and Lisp floating-point numbers.
+
+@item
+JSON strings are always Unicode strings.  Lisp strings can contain
+non-Unicode characters.
+
+@item
+JSON has only one sequence type, the array.  JSON arrays are
+represented using Lisp vectors.
+
+@item
+JSON has only one map type, the object.  JSON objects are represented
+using Lisp hashtables.
+
+@end itemize
+
+@noindent
+Note that @code{nil} doesn't represent any JSON values: this is to
+avoid confusion, because @code{nil} could either represent
+@code{null}, @code{false}, or an empty array, all of which are
+different JSON values.
+
+  If some Lisp object can't be represented in JSON, the serialization
+functions will signal an error of type @code{wrong-type-argument}.
+The parsing functions will signal the following errors:
+
+@table @code
+
+@item json-end-of-file
+    Signaled when encountering a premature end of the input text.
+
+@item json-trailing-content
+    Signaled when encountering unexpected input after the first JSON
+    object parsed.
+
+@item json-parse-error
+    Signaled when encountering invalid JSON syntax.
+
+@end table
+
+  Only top-level values (arrays and objects) can be serialized to
+JSON.  The subobjects within these top-level values can be of any
+type.  Likewise, the parsing functions will only return vectors and
+hashtables.
+
+@defun json-serialize object
+This function returns a new Lisp string which contains the JSON
+representation of @var{object}.
+@end defun
+
+@defun json-insert object
+This function inserts the JSON representation of @var{object} into the
+current buffer before point.
+@end defun
+
+@defun json-parse-string string
+This function parses the JSON value in @var{string}, which must be a
+Lisp string.
+@end defun
+
+@defun json-parse-buffer
+This function reads the next JSON value from the current buffer,
+starting at point.  It moves point to the position immediately after
+the value if a value could be read and converted to Lisp; otherwise it
+doesn't move point.
+@end defun
 
 
 @node Atomic Changes

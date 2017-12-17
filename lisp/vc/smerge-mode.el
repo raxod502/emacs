@@ -725,7 +725,7 @@ this keeps \"UUU\"."
   (let ((i 3))
     (while (or (not (match-end i))
 	       (< (point) (match-beginning i))
-	       (>= (point) (match-end i)))
+	       (> (point) (match-end i)))
       (cl-decf i))
     i))
 
@@ -919,7 +919,7 @@ Its behavior has mainly two restrictions:
   after the newline.
   This only matters if `smerge-refine-ignore-whitespace' is nil.
 - it needs to be unaffected by changes performed by the `preproc' argument
-  to `smerge-refine-subst'.
+  to `smerge-refine-regions'.
   This only matters if `smerge-refine-weight-hack' is nil.")
 
 (defvar smerge-refine-ignore-whitespace t
@@ -1094,7 +1094,7 @@ used to replace chars to try and eliminate some spurious differences."
                               ;; also and more importantly because otherwise it
                               ;; may happen that diff doesn't behave like
                               ;; smerge-refine-weight-hack expects it to.
-                              ;; See http://lists.gnu.org/archive/html/emacs-devel/2007-11/msg00401.html
+                              ;; See https://lists.gnu.org/r/emacs-devel/2007-11/msg00401.html
                               "-awd" "-ad")
                           file1 file2))
           ;; Process diff's output.
@@ -1188,15 +1188,15 @@ repeating the command will highlight other two parts."
       (put-text-property (match-beginning 0) (1+ (match-beginning 0))
                          'smerge-refine-part
                          (cons (buffer-chars-modified-tick) part)))
-    (smerge-refine-subst (match-beginning n1) (match-end n1)
+    (smerge-refine-regions (match-beginning n1) (match-end n1)
                          (match-beginning n2)  (match-end n2)
                          (if smerge-use-changed-face
-			     '((smerge . refine) (face . smerge-refined-change)))
+			     '((smerge . refine) (font-lock-face . smerge-refined-change)))
 			 nil
 			 (unless smerge-use-changed-face
-			   '((smerge . refine) (face . smerge-refined-removed)))
+			   '((smerge . refine) (font-lock-face . smerge-refined-removed)))
 			 (unless smerge-use-changed-face
-			   '((smerge . refine) (face . smerge-refined-added))))))
+			   '((smerge . refine) (font-lock-face . smerge-refined-added))))))
 
 (defun smerge-swap ()
   "Swap the \"Upper\" and the \"Lower\" chunks.

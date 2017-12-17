@@ -482,7 +482,9 @@ usage: (vconcat &rest SEQUENCES)   */)
 DEFUN ("copy-sequence", Fcopy_sequence, Scopy_sequence, 1, 1, 0,
        doc: /* Return a copy of a list, vector, string, char-table or record.
 The elements of a list, vector or record are not copied; they are
-shared with the original.  */)
+shared with the original.
+If the original sequence is empty, this function may return
+the same empty object instead of its copy.  */)
   (Lisp_Object arg)
 {
   if (NILP (arg)) return arg;
@@ -1991,7 +1993,7 @@ This is the last value stored with `(put SYMBOL PROPNAME VALUE)'.  */)
                                     propname);
   if (!NILP (propval))
     return propval;
-  return Fplist_get (XSYMBOL (symbol)->plist, propname);
+  return Fplist_get (XSYMBOL (symbol)->u.s.plist, propname);
 }
 
 DEFUN ("plist-put", Fplist_put, Splist_put, 3, 3, 0,
@@ -2037,7 +2039,7 @@ It can be retrieved with `(get SYMBOL PROPNAME)'.  */)
 {
   CHECK_SYMBOL (symbol);
   set_symbol_plist
-    (symbol, Fplist_put (XSYMBOL (symbol)->plist, propname, value));
+    (symbol, Fplist_put (XSYMBOL (symbol)->u.s.plist, propname, value));
   return value;
 }
 
@@ -5168,7 +5170,7 @@ syms_of_fns (void)
   DEFSYM (Qwidget_type, "widget-type");
 
   DEFVAR_LISP ("overriding-plist-environment", Voverriding_plist_environment,
-               doc: /* An alist overrides the plists of the symbols which it lists.
+               doc: /* An alist that overrides the plists of the symbols which it lists.
 Used by the byte-compiler to apply `define-symbol-prop' during
 compilation.  */);
   Voverriding_plist_environment = Qnil;

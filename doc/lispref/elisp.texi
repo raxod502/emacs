@@ -455,6 +455,7 @@ Evaluation
                               the program).
 * Backquote::               Easier construction of list structure.
 * Eval::                    How to invoke the Lisp interpreter explicitly.
+* Deferred Eval::           Deferred and lazy evaluation of forms.
 
 Kinds of Forms
 
@@ -940,6 +941,7 @@ Documentation
 * Documentation Basics::    Where doc strings are defined and stored.
 * Accessing Documentation:: How Lisp programs can access doc strings.
 * Keys in Documentation::   Substituting current key bindings.
+* Text Quoting Style::      Quotation marks in doc strings and messages.
 * Describing Characters::   Making printable descriptions of
                               non-printing characters and key sequences.
 * Help Functions::          Subroutines used by Emacs help facilities.

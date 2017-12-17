@@ -527,7 +527,7 @@ each invocation of the saving commands."
   "If non-nil, show the cursor in the Article buffer even when not selected."
   :version "25.1"
   :group 'gnus-article
-  :type 'bool)
+  :type 'boolean)
 
 (defcustom gnus-saved-headers gnus-visible-headers
   "Headers to keep if `gnus-save-all-headers' is nil.
@@ -3628,8 +3628,7 @@ possible values."
 (defun article-lapsed-string (time &optional max-segments)
   ;; If the date is seriously mangled, the timezone functions are
   ;; liable to bug out, so we ignore all errors.
-  (let* ((now (current-time))
-	 (real-time (time-subtract now time))
+  (let* ((real-time (time-subtract nil time))
 	 (real-sec (and real-time
 			(+ (* (float (car real-time)) 65536)
 			   (cadr real-time))))
@@ -5220,7 +5219,7 @@ available media-types."
 	    (gnus-completing-read
 	     "View as MIME type"
 	     (if pred
-		 (gnus-remove-if-not pred (mailcap-mime-types))
+		 (seq-filter pred (mailcap-mime-types))
 	       (mailcap-mime-types))
 	     nil nil nil
 	     (car default)))))
@@ -6712,8 +6711,7 @@ not have a face in `gnus-article-boring-faces'."
 	  (member keys nosave-but-article)
 	  (member keys nosave-in-article))
       (let (func)
-	(save-window-excursion
-	  (pop-to-buffer gnus-article-current-summary)
+	(with-current-buffer gnus-article-current-summary
 	  ;; We disable the pick minor mode commands.
 	  (let (gnus-pick-mode)
 	    (setq func (key-binding keys t))))
@@ -6984,6 +6982,7 @@ If given a prefix, show the hidden text instead."
 	(save-excursion
 	  (erase-buffer)
 	  (gnus-kill-all-overlays)
+	  (setq bidi-paragraph-direction nil)
 	  (setq group (or group gnus-newsgroup-name))
 
 	  ;; Using `gnus-request-article' directly will insert the article into
@@ -7091,6 +7090,7 @@ If given a prefix, show the hidden text instead."
 	      (while (not result)
 		(erase-buffer)
 		(gnus-kill-all-overlays)
+		(setq bidi-paragraph-direction nil)
 		(let ((gnus-newsgroup-name group))
 		  (gnus-check-group-server))
 		(cond

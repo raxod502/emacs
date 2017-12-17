@@ -63,6 +63,9 @@ completing up to a nonexistent file name, Emacs prints
 @samp{[Confirm]} and you must type a second @key{RET} to confirm.
 @xref{Completion Exit}, for details.
 
+Minibuffer history commands offer some special features for reading
+file names, see @ref{Minibuffer History}.
+
 @cindex default directory
 @vindex default-directory
 @vindex insert-default-directory
@@ -1279,13 +1282,8 @@ default), and @code{list-directory-verbose-switches} is a string
 giving the switches to use in a verbose listing (@code{"-l"} by
 default).
 
-@vindex directory-free-space-program
-@vindex directory-free-space-args
   In verbose directory listings, Emacs adds information about the
-amount of free space on the disk that contains the directory.  To do
-this, it runs the program specified by
-@code{directory-free-space-program} with arguments
-@code{directory-free-space-args}.
+amount of free space on the disk that contains the directory.
 
   The command @kbd{M-x delete-directory} prompts for a directory's name
 using the minibuffer, and deletes the directory if it is empty.  If

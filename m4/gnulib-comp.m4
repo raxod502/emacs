@@ -87,6 +87,7 @@ AC_DEFUN([gl_EARLY],
   # Code from module flexmember:
   # Code from module fpending:
   # Code from module fstatat:
+  # Code from module fsusage:
   # Code from module fsync:
   # Code from module getdtablesize:
   # Code from module getgroups:
@@ -222,7 +223,7 @@ AC_DEFUN([gl_INIT],
   gl_STRING_MODULE_INDICATOR([explicit_bzero])
   AC_REQUIRE([gl_EXTERN_INLINE])
   gl_FUNC_FACCESSAT
-  if test $HAVE_FACCESSAT = 0; then
+  if test $HAVE_FACCESSAT = 0 || test $REPLACE_FACCESSAT = 1; then
     AC_LIBOBJ([faccessat])
     gl_PREREQ_FACCESSAT
   fi
@@ -256,6 +257,11 @@ AC_DEFUN([gl_INIT],
     AC_LIBOBJ([fstatat])
   fi
   gl_SYS_STAT_MODULE_INDICATOR([fstatat])
+  gl_FSUSAGE
+  if test $gl_cv_fs_space = yes; then
+    AC_LIBOBJ([fsusage])
+    gl_PREREQ_FSUSAGE_EXTRA
+  fi
   gl_FUNC_FSYNC
   if test $HAVE_FSYNC = 0; then
     AC_LIBOBJ([fsync])
@@ -593,16 +599,16 @@ AC_DEFUN([gl_INIT],
       gl_gnulib_enabled_682e609604ccaac6be382e4ee3a4eaec=true
     fi
   }
-  if test $HAVE_FACCESSAT = 0; then
+  if test $HAVE_FACCESSAT = 0 || test $REPLACE_FACCESSAT = 1; then
     func_gl_gnulib_m4code_260941c0e5dc67ec9e87d1fb321c300b
   fi
-  if test $HAVE_FACCESSAT = 0; then
+  if test $HAVE_FACCESSAT = 0 || test $REPLACE_FACCESSAT = 1; then
     func_gl_gnulib_m4code_dosname
   fi
-  if test $HAVE_FACCESSAT = 0; then
+  if test $HAVE_FACCESSAT = 0 || test $REPLACE_FACCESSAT = 1; then
     func_gl_gnulib_m4code_euidaccess
   fi
-  if test $HAVE_FACCESSAT = 0; then
+  if test $HAVE_FACCESSAT = 0 || test $REPLACE_FACCESSAT = 1; then
     func_gl_gnulib_m4code_03e0aaad4cb89ca757653bd367a6ccb7
   fi
   if test $HAVE_FCNTL = 0 || test $REPLACE_FCNTL = 1; then
@@ -864,6 +870,8 @@ AC_DEFUN([gl_FILE_LIST], [
   lib/fpending.c
   lib/fpending.h
   lib/fstatat.c
+  lib/fsusage.c
+  lib/fsusage.h
   lib/fsync.c
   lib/ftoastr.c
   lib/ftoastr.h
@@ -995,6 +1003,7 @@ AC_DEFUN([gl_FILE_LIST], [
   m4/flexmember.m4
   m4/fpending.m4
   m4/fstatat.m4
+  m4/fsusage.m4
   m4/fsync.m4
   m4/getdtablesize.m4
   m4/getgroups.m4

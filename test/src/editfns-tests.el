@@ -136,6 +136,12 @@
 (ert-deftest format-c-float ()
   (should-error (format "%c" 0.5)))
 
+;;; Test for Bug#29609.
+(ert-deftest format-sharp-0-x ()
+  (should (string-equal (format "%#08x" #x10) "0x000010"))
+  (should (string-equal (format "%#05X" #x10) "0X010"))
+  (should (string-equal (format "%#04x" 0) "0000")))
+
 ;;; Check format-time-string with various TZ settings.
 ;;; Use only POSIX-compatible TZ values, since the tests should work
 ;;; even if tzdb is not in use.
@@ -166,6 +172,14 @@
     (should (string-equal
              (format-time-string format look '(-28800 "PST"))
              "1972-06-30 15:59:59.999 -0800 (PST)"))
+    ;; Negative UTC offset, as a Lisp integer.
+    (should (string-equal
+             (format-time-string format look -28800)
+             ;; MS-Windows build replaces unrecognizable TZ values,
+             ;; such as "-08", with "ZZZ".
+             (if (eq system-type 'windows-nt)
+                 "1972-06-30 15:59:59.999 -0800 (ZZZ)"
+               "1972-06-30 15:59:59.999 -0800 (-08)")))
     ;; Positive UTC offset that is not an hour multiple, as a string.
     (should (string-equal
              (format-time-string format look "IST-5:30")

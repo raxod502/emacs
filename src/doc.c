@@ -336,6 +336,8 @@ string is passed through `substitute-command-keys'.  */)
     }
 
   fun = Findirect_function (function, Qnil);
+  if (NILP (fun))
+    xsignal1 (Qvoid_function, function);
   if (CONSP (fun) && EQ (XCAR (fun), Qmacro))
     fun = XCDR (fun);
   if (SUBRP (fun))
@@ -470,7 +472,7 @@ store_function_docstring (Lisp_Object obj, EMACS_INT offset)
 {
   /* Don't use indirect_function here, or defaliases will apply their
      docstrings to the base functions (Bug#2603).  */
-  Lisp_Object fun = SYMBOLP (obj) ? XSYMBOL (obj)->function : obj;
+  Lisp_Object fun = SYMBOLP (obj) ? XSYMBOL (obj)->u.s.function : obj;
 
   /* The type determines where the docstring is stored.  */
 

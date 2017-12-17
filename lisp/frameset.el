@@ -446,8 +446,12 @@ DO NOT MODIFY.  See `frameset-filter-alist' for a full description.")
      (buffer-list        . :never)
      (buffer-predicate   . :never)
      (buried-buffer-list . :never)
+     ;; Don't save the 'client' parameter to avoid that a subsequent
+     ;; `save-buffers-kill-terminal' in a non-client session barks at
+     ;; the user (Bug#29067).
+     (client             . :never)
      (delete-before      . :never)
-     (font               . frameset-filter-shelve-param)
+     (font               . frameset-filter-font-param)
      (foreground-color   . frameset-filter-sanitize-color)
      (fullscreen         . frameset-filter-shelve-param)
      (GUI:font           . frameset-filter-unshelve-param)
@@ -631,6 +635,17 @@ see `frameset-filter-alist'."
 	  (setcdr found val)
 	  nil))))
 
+(defun frameset-filter-font-param (current filtered parameters saving
+                                           &optional prefix)
+  "When switching from a tty frame to a GUI frame, remove the FONT param.
+
+When switching from a GUI frame to a tty frame, behave
+as `frameset-filter-shelve-param' does."
+  (or saving
+      (if (frameset-switch-to-tty-p parameters)
+          (frameset-filter-shelve-param current filtered parameters saving
+                                        prefix))))
+
 (defun frameset-filter-iconified (_current _filtered parameters saving)
   "Remove CURRENT when saving an iconified frame.
 This is used for positional parameters `left' and `top', which are
@@ -730,6 +745,8 @@ The relationships recorded for each frame are
 - `delete-before' via `frameset--delete-before'
 - `parent-frame' via `frameset--parent-frame'
 - `mouse-wheel-frame' via `frameset--mouse-wheel-frame'
+- `text-pixel-width' via `frameset--text-pixel-width'
+- `text-pixel-height' via `frameset--text-pixel-height'
 
 Internal use only."
   ;; Record frames with their own minibuffer
@@ -776,7 +793,23 @@ Internal use only."
              'frameset--mini
              (cons nil
                    (and mb-frame
-                        (frameset-frame-id mb-frame))))))))))
+                        (frameset-frame-id mb-frame)))))))))
+  ;; Now store text-pixel width and height if it differs from the calculated
+  ;; width and height and the frame is not fullscreen.
+  (dolist (frame frame-list)
+    (unless (frame-parameter frame 'fullscreen)
+      (unless (eq (* (frame-parameter frame 'width)
+                     (frame-char-width frame))
+                  (frame-text-width frame))
+        (set-frame-parameter
+         frame 'frameset--text-pixel-width
+         (frame-text-width frame)))
+      (unless (eq (* (frame-parameter frame 'height)
+                     (frame-char-height frame))
+                  (frame-text-height frame))
+        (set-frame-parameter
+         frame 'frameset--text-pixel-height
+         (frame-text-height frame))))))
 
 ;;;###autoload
 (cl-defun frameset-save (frame-list
@@ -987,6 +1020,14 @@ Internal use only."
 	 (display (cdr (assq 'display filtered-cfg))) ;; post-filtering
 	 alt-cfg frame)
 
+    ;; Use text-pixels for height and width, if available.
+    (let ((text-pixel-width (cdr (assq 'frameset--text-pixel-width parameters)))
+          (text-pixel-height (cdr (assq 'frameset--text-pixel-height parameters))))
+      (when text-pixel-width
+        (setf (alist-get 'width filtered-cfg) (cons 'text-pixels text-pixel-width)))
+      (when text-pixel-height
+        (setf (alist-get 'height filtered-cfg) (cons 'text-pixels text-pixel-height))))
+
     (when fullscreen
       ;; Currently Emacs has the limitation that it does not record the size
       ;; and position of a frame before maximizing it, so we cannot save &
@@ -1023,6 +1064,12 @@ Internal use only."
 					 (cons '(visibility)
 					       (frameset--initial-params filtered-cfg))))
       (puthash frame :created frameset--action-map))
+
+    ;; Remove `border-width' from the list of parameters.  If it has not
+    ;; been assigned via `make-frame-on-display', any attempt to assign
+    ;; it now via `modify-frame-parameters' may result in an error on X
+    ;; (Bug#28873).
+    (setq filtered-cfg (assq-delete-all 'border-width filtered-cfg))
 
     ;; Try to assign parent-frame right here - it will improve things
     ;; for minibuffer-less child frames.

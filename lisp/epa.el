@@ -40,6 +40,7 @@
 If t, replace the original text without any confirmation.
 If nil, don't replace the original text and show the result in a new buffer.
 If neither t nor nil, ask user for confirmation."
+  :version "26.1"
   :type '(choice (const :tag "Never" nil)
 		 (const :tag "Ask the user" ask)
 		 (const :tag "Always" t))
@@ -561,7 +562,7 @@ If SECRET is non-nil, list secret keys instead of public keys."
 				      (epg-sub-key-creation-time (car pointer)))
 		(error "????-??-??"))
 	      (if (epg-sub-key-expiration-time (car pointer))
-		  (format (if (time-less-p (current-time)
+		  (format (if (time-less-p nil
 					   (epg-sub-key-expiration-time
 					    (car pointer)))
 			      "\n\tExpires: %s"

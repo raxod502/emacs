@@ -3992,7 +3992,7 @@ If SELECT-ARTICLES, only select those articles from GROUP."
 	(spam-initialize))
       ;; Save the active value in effect when the group was entered.
       (setq gnus-newsgroup-active
-	    (gnus-copy-sequence
+	    (copy-tree
 	     (gnus-active gnus-newsgroup-name)))
       (setq gnus-newsgroup-highest (cdr gnus-newsgroup-active))
       ;; You can change the summary buffer in some way with this hook.
@@ -5737,7 +5737,7 @@ If SELECT-ARTICLES, only select those articles from GROUP."
 	      (mail-header-number (car gnus-newsgroup-headers))
 	      gnus-newsgroup-end
 	      (mail-header-number
-	       (gnus-last-element gnus-newsgroup-headers))))
+	       (car (last gnus-newsgroup-headers)))))
       ;; GROUP is successfully selected.
       (or gnus-newsgroup-headers t)))))
 
@@ -6076,12 +6076,12 @@ If SELECT-ARTICLES, only select those articles from GROUP."
 		 (del
 		  (gnus-list-range-intersection
 		   gnus-newsgroup-articles
-		   (gnus-remove-from-range (gnus-copy-sequence old) list)))
+		   (gnus-remove-from-range (copy-tree old) list)))
 		 (add
 		  (gnus-list-range-intersection
 		   gnus-newsgroup-articles
 		   (gnus-remove-from-range
-		    (gnus-copy-sequence list) old))))
+		    (copy-tree list) old))))
 	    (when add
 	      (push (list add 'add (list (cdr type))) delta-marks))
 	    (when del
@@ -10294,7 +10294,6 @@ latter case, they will be copied into the relevant groups."
   "Import an arbitrary file into a mail newsgroup."
   (interactive "fImport file: \nP")
   (let ((group gnus-newsgroup-name)
-	(now (current-time))
 	atts lines group-art)
     (unless (gnus-check-backend-function 'request-accept-article group)
       (error "%s does not support article importing" group))
@@ -10313,6 +10312,7 @@ latter case, they will be copied into the relevant groups."
 	    (goto-char (point-min))
 	    (unless (re-search-forward "^date:" nil t)
 	      (goto-char (point-max))
+	      (setq atts (file-attributes file))
 	      (insert "Date: " (message-make-date (nth 5 atts)) "\n")))
        ;; This doesn't look like an article, so we fudge some headers.
 	(setq atts (file-attributes file)
@@ -11962,7 +11962,7 @@ Argument REVERSE means reverse order."
   (interactive "P")
   (gnus-summary-sort 'chars reverse))
 
-(defun gnus-summary-sort-by-mark (&optional reverse)
+(defun gnus-summary-sort-by-marks (&optional reverse)
   "Sort the summary buffer by article marks.
 Argument REVERSE means reverse order."
   (interactive "P")
@@ -12270,21 +12270,27 @@ save those articles instead."
 		  (if (> (length articles) 1)
 		      (format "these %d articles" (length articles))
 		    "this article")))
+	 valid-names
 	 (to-newsgroup
-          (cond
-           ((null split-name)
-            (gnus-group-completing-read
-             prom
-             (gnus-remove-if-not 'gnus-valid-move-group-p gnus-active-hashtb t)
-             nil prefix nil default))
-           ((= 1 (length split-name))
-            (gnus-group-completing-read
-             prom
-	     (gnus-remove-if-not 'gnus-valid-move-group-p gnus-active-hashtb t)
-             nil prefix 'gnus-group-history (car split-name)))
-           (t
-            (gnus-completing-read
-             prom (nreverse split-name) nil nil 'gnus-group-history))))
+	  (progn
+	    (mapatoms (lambda (g)
+			(when (gnus-valid-move-group-p g)
+			  (push g valid-names)))
+		      gnus-active-hashtb)
+            (cond
+             ((null split-name)
+              (gnus-group-completing-read
+               prom
+               valid-names
+               nil prefix nil default))
+             ((= 1 (length split-name))
+              (gnus-group-completing-read
+               prom
+	       valid-names
+               nil prefix 'gnus-group-history (car split-name)))
+             (t
+              (gnus-completing-read
+               prom (nreverse split-name) nil nil 'gnus-group-history)))))
          (to-method (gnus-server-to-method (gnus-group-method to-newsgroup)))
 	 encoded)
     (when to-newsgroup
@@ -12915,7 +12921,7 @@ returned."
 	    (mail-header-number (car gnus-newsgroup-headers))
 	    gnus-newsgroup-end
 	    (mail-header-number
-	     (gnus-last-element gnus-newsgroup-headers))))
+	     (car (last gnus-newsgroup-headers)))))
     (when gnus-use-scoring
       (gnus-possibly-score-headers))))
 
@@ -13002,7 +13008,7 @@ If ALL is a number, fetch this number of articles."
 	i new)
     (unless new-active
       (error "Couldn't fetch new data"))
-    (setq gnus-newsgroup-active (gnus-copy-sequence new-active))
+    (setq gnus-newsgroup-active (copy-tree new-active))
     (setq i (cdr gnus-newsgroup-active)
 	  gnus-newsgroup-highest i)
     (while (> i old-high)

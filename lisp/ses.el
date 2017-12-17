@@ -1254,8 +1254,7 @@ preceding cell has spilled over."
 	 ((< len width)
 	  ;; Fill field to length with spaces.
 	  (setq len  (make-string (- width len) ?\s)
-		text (if (or (stringp value)
-			     (eq ses-call-printer-return t))
+		text (if (eq ses-call-printer-return t)
 			 (concat text len)
 		       (concat len text))))
 	 ((> len width)
@@ -3052,7 +3051,7 @@ We'll assume copying front-sticky properties doesn't make sense, either.
 
 This advice also includes some SES-specific code because otherwise it's too
 hard to override how mouse-1 works."
-  (when (> beg end)
+  (when (and beg end (> beg end))
     (let ((temp beg))
       (setq beg end
 	    end temp)))

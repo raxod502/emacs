@@ -504,7 +504,7 @@ struct buffer_text
 
 struct buffer
 {
-  struct vectorlike_header header;
+  union vectorlike_header header;
 
   /* The name of this buffer.  */
   Lisp_Object name_;
@@ -947,6 +947,16 @@ INLINE void
 bset_display_count (struct buffer *b, Lisp_Object val)
 {
   b->display_count_ = val;
+}
+INLINE void
+bset_left_margin_cols (struct buffer *b, Lisp_Object val)
+{
+  b->left_margin_cols_ = val;
+}
+INLINE void
+bset_right_margin_cols (struct buffer *b, Lisp_Object val)
+{
+  b->right_margin_cols_ = val;
 }
 INLINE void
 bset_display_time (struct buffer *b, Lisp_Object val)

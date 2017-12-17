@@ -150,8 +150,13 @@ Called with an absolute file name as argument, it returns t to enable backup.")
 (defcustom buffer-offer-save nil
   "Non-nil in a buffer means always offer to save buffer on exit.
 Do so even if the buffer is not visiting a file.
-Automatically local in all buffers."
-  :type 'boolean
+Automatically local in all buffers.
+
+Set to the symbol `always' to offer to save buffer whenever
+`save-some-buffers' is called."
+  :type '(choice (const :tag "Never" nil)
+                 (const :tag "On Emacs exit" t)
+                 (const :tag "Whenever save-some-buffers is called" always))
   :group 'backup)
 (make-variable-buffer-local 'buffer-offer-save)
 (put 'buffer-offer-save 'permanent-local t)
@@ -1555,7 +1560,15 @@ Switch to a buffer visiting file FILENAME,
 creating one if none already exists.
 Interactively, the default if you just type RET is the current directory,
 but the visited file name is available through the minibuffer history:
-type M-n to pull it into the minibuffer.
+type \\[next-history-element] to pull it into the minibuffer.
+
+The first time \\[next-history-element] is used after Emacs prompts for
+the file name, the result is affected by `file-name-at-point-functions',
+which by default try to guess the file name by looking at point in the
+current buffer.  Customize the value of `file-name-at-point-functions'
+or set it to nil, if you want only the visited file name and the
+current directory to be available on first \\[next-history-element]
+request.
 
 You can visit files on remote machines by specifying something
 like /ssh:SOME_REMOTE_MACHINE:FILE for the file name.  You can
@@ -1586,7 +1599,15 @@ an existing one.  See the function `display-buffer'.
 
 Interactively, the default if you just type RET is the current directory,
 but the visited file name is available through the minibuffer history:
-type M-n to pull it into the minibuffer.
+type \\[next-history-element] to pull it into the minibuffer.
+
+The first time \\[next-history-element] is used after Emacs prompts for
+the file name, the result is affected by `file-name-at-point-functions',
+which by default try to guess the file name by looking at point in the
+current buffer.  Customize the value of `file-name-at-point-functions'
+or set it to nil, if you want only the visited file name and the
+current directory to be available on first \\[next-history-element]
+request.
 
 Interactively, or if WILDCARDS is non-nil in a call from Lisp,
 expand wildcards (if any) and visit multiple files."
@@ -1610,7 +1631,15 @@ an existing one.  See the function `display-buffer'.
 
 Interactively, the default if you just type RET is the current directory,
 but the visited file name is available through the minibuffer history:
-type M-n to pull it into the minibuffer.
+type \\[next-history-element] to pull it into the minibuffer.
+
+The first time \\[next-history-element] is used after Emacs prompts for
+the file name, the result is affected by `file-name-at-point-functions',
+which by default try to guess the file name by looking at point in the
+current buffer.  Customize the value of `file-name-at-point-functions'
+or set it to nil, if you want only the visited file name and the
+current directory to be available on first \\[next-history-element]
+request.
 
 Interactively, or if WILDCARDS is non-nil in a call from Lisp,
 expand wildcards (if any) and visit multiple files."
@@ -1772,7 +1801,11 @@ killed."
 	  (setq buffer-file-truename nil)
 	  ;; Likewise for dired buffers.
 	  (setq dired-directory nil)
-	  (find-file filename wildcards))
+          ;; Don't use `find-file' because it may end up using another window
+          ;; in some corner cases, e.g. when the selected window is
+          ;; softly-dedicated.
+	  (let ((newbuf (find-file-noselect filename wildcards)))
+            (switch-to-buffer newbuf)))
       (when (eq obuf (current-buffer))
 	;; This executes if find-file gets an error
 	;; and does not really find anything.
@@ -1826,7 +1859,13 @@ The value includes abbreviation according to `directory-abbrev-alist'.")
   "Return a version of FILENAME shortened using `directory-abbrev-alist'.
 This also substitutes \"~\" for the user's home directory (unless the
 home directory is a root directory) and removes automounter prefixes
-\(see the variable `automount-dir-prefix')."
+\(see the variable `automount-dir-prefix').
+
+When this function is first called, it caches the user's home
+directory as a regexp in `abbreviated-home-dir', and reuses it
+afterwards (so long as the home directory does not change;
+if you want to permanently change your home directory after having
+started Emacs, set `abbreviated-home-dir' to nil so it will be recalculated)."
   ;; Get rid of the prefixes added by the automounter.
   (save-match-data
     (if (and automount-dir-prefix
@@ -1848,29 +1887,37 @@ home directory is a root directory) and removes automounter prefixes
       ;; give time for directory-abbrev-alist to be set properly.
       ;; We include a slash at the end, to avoid spurious matches
       ;; such as `/usr/foobar' when the home dir is `/usr/foo'.
-      (or abbreviated-home-dir
-	  (setq abbreviated-home-dir
-		(let ((abbreviated-home-dir "$foo"))
-                  (setq abbreviated-home-dir
-                        (concat "\\`"
-                                (abbreviate-file-name (expand-file-name "~"))
-                                "\\(/\\|\\'\\)"))
-                  ;; Depending on whether default-directory does or
-                  ;; doesn't include non-ASCII characters, the value
-                  ;; of abbreviated-home-dir could be multibyte or
-                  ;; unibyte.  In the latter case, we need to decode
-                  ;; it.  Note that this function is called for the
-                  ;; first time (from startup.el) when
-                  ;; locale-coding-system is already set up.
-                  (if (multibyte-string-p abbreviated-home-dir)
-                      abbreviated-home-dir
-                    (decode-coding-string abbreviated-home-dir
-                                          (if (eq system-type 'windows-nt)
-                                              'utf-8
-                                            locale-coding-system))))))
+      (unless abbreviated-home-dir
+        (put 'abbreviated-home-dir 'home (expand-file-name "~"))
+        (setq abbreviated-home-dir
+              (let ((abbreviated-home-dir "$foo"))
+                (setq abbreviated-home-dir
+                      (concat "\\`"
+                              (abbreviate-file-name
+                               (get 'abbreviated-home-dir 'home))
+                              "\\(/\\|\\'\\)"))
+                ;; Depending on whether default-directory does or
+                ;; doesn't include non-ASCII characters, the value
+                ;; of abbreviated-home-dir could be multibyte or
+                ;; unibyte.  In the latter case, we need to decode
+                ;; it.  Note that this function is called for the
+                ;; first time (from startup.el) when
+                ;; locale-coding-system is already set up.
+                (if (multibyte-string-p abbreviated-home-dir)
+                    abbreviated-home-dir
+                  (decode-coding-string abbreviated-home-dir
+                                        (if (eq system-type 'windows-nt)
+                                            'utf-8
+                                          locale-coding-system))))))
 
       ;; If FILENAME starts with the abbreviated homedir,
+      ;; and ~ hasn't changed since abbreviated-home-dir was set,
       ;; make it start with `~' instead.
+      ;; If ~ has changed, we ignore abbreviated-home-dir rather than
+      ;; invalidating it, on the assumption that a change in HOME
+      ;; is likely temporary (eg for testing).
+      ;; FIXME Is it even worth caching abbreviated-home-dir?
+      ;; Ref: https://debbugs.gnu.org/19657#20
       (if (and (string-match abbreviated-home-dir filename)
 	       ;; If the home dir is just /, don't change it.
 	       (not (and (= (match-end 0) 1)
@@ -1879,7 +1926,9 @@ home directory is a root directory) and removes automounter prefixes
 	       ;; Novell Netware allows drive letters beyond `Z:'.
 	       (not (and (memq system-type '(ms-dos windows-nt cygwin))
 			 (save-match-data
-			   (string-match "^[a-zA-`]:/$" filename)))))
+			   (string-match "^[a-zA-`]:/$" filename))))
+               (equal (get 'abbreviated-home-dir 'home)
+                      (expand-file-name "~")))
 	  (setq filename
 		(concat "~"
 			(match-string 1 filename)
@@ -3860,16 +3909,16 @@ VARIABLES list of the class.  The list is processed in order.
   "File that contains directory-local variables.
 It has to be constant to enforce uniform values across different
 environments and users.
-See also `dir-locals-file-2', whose values override this one's.
-See Info node `(elisp)Directory Local Variables' for details.")
 
-(defconst dir-locals-file-2 ".dir-locals-2.el"
-  "File that contains directory-local variables.
-This essentially a second file that can be used like
-`dir-locals-file', so that users can have specify their personal
-dir-local variables even if the current directory already has a
-`dir-locals-file' that is shared with other users (such as in a
-git repository).
+A second dir-locals file can be used by a user to specify their
+personal dir-local variables even if the current directory
+already has a `dir-locals-file' that is shared with other
+users (such as in a git repository).  The name of this second
+file is derived by appending \"-2\" to the base name of
+`dir-locals-file'.  With the default value of `dir-locals-file',
+a \".dir-locals-2.el\" file in the same directory will override
+the \".dir-locals.el\".
+
 See Info node `(elisp)Directory Local Variables' for details.")
 
 (defun dir-locals--all-files (directory)
@@ -3942,11 +3991,12 @@ This function returns either:
                   ;; The entry MTIME should match the most recent
                   ;; MTIME among matching files.
                   (and cached-files
-                       (= (float-time (nth 2 dir-elt))
-                          (apply #'max (mapcar (lambda (f)
-                                                 (float-time
-                                                  (nth 5 (file-attributes f))))
-                                               cached-files))))))
+		       (equal (nth 2 dir-elt)
+			      (let ((latest 0))
+				(dolist (f cached-files latest)
+				  (let ((f-time (nth 5 (file-attributes f))))
+				    (if (time-less-p latest f-time)
+					(setq latest f-time)))))))))
             ;; This cache entry is OK.
             dir-elt
           ;; This cache entry is invalid; clear it.
@@ -3968,10 +4018,15 @@ Return the new class name, which is a symbol named DIR."
   (let* ((class-name (intern dir))
          (files (dir-locals--all-files dir))
          (read-circle nil)
-         (success nil)
+	 ;; If there was a problem, use the values we could get but
+	 ;; don't let the cache prevent future reads.
+	 (latest 0) (success 0)
          (variables))
     (with-demoted-errors "Error reading dir-locals: %S"
       (dolist (file files)
+	(let ((file-time (nth 5 (file-attributes file))))
+	  (if (time-less-p latest file-time)
+	    (setq latest file-time)))
         (with-temp-buffer
           (insert-file-contents file)
           (condition-case-unless-debug nil
@@ -3980,18 +4035,9 @@ Return the new class name, which is a symbol named DIR."
                                     variables
                                     (read (current-buffer))))
             (end-of-file nil))))
-      (setq success t))
+      (setq success latest))
     (dir-locals-set-class-variables class-name variables)
-    (dir-locals-set-directory-class
-     dir class-name
-     (seconds-to-time
-      (if success
-          (apply #'max (mapcar (lambda (file)
-                                 (float-time (nth 5 (file-attributes file))))
-                               files))
-        ;; If there was a problem, use the values we could get but
-        ;; don't let the cache prevent future reads.
-        0)))
+    (dir-locals-set-directory-class dir class-name success)
     class-name))
 
 (define-obsolete-function-alias 'dir-locals-read-from-file
@@ -4479,8 +4525,8 @@ extension, the value is \"\"."
             "")))))
 
 (defun file-name-base (&optional filename)
-  "Return the base name of the FILENAME: no directory, no extension.
-FILENAME defaults to `buffer-file-name'."
+  "Return the base name of the FILENAME: no directory, no extension."
+  (declare (advertised-calling-convention (filename) "27.1"))
   (file-name-sans-extension
    (file-name-nondirectory (or filename (buffer-file-name)))))
 
@@ -4611,17 +4657,27 @@ The function `find-backup-file-name' also uses this."
 	      ;; "/drive_x".
 	      (or (file-name-absolute-p file)
 		  (setq file (expand-file-name file))) ; make defaults explicit
-	      ;; Replace any invalid file-name characters (for the
-	      ;; case of backing up remote files).
-	      (setq file (expand-file-name (convert-standard-filename file)))
-	      (if (eq (aref file 1) ?:)
-		  (setq file (concat "/"
-				     "drive_"
-				     (char-to-string (downcase (aref file 0)))
-				     (if (eq (aref file 2) ?/)
-					 ""
-				       "/")
-				     (substring file 2)))))
+              (cond
+               ((file-remote-p file)
+                ;; Remove the leading slash, if any, to prevent
+                ;; convert-standard-filename from converting that to a
+                ;; backslash.
+                (and (memq (aref file 0) '(?/ ?\\))
+                     (setq file (substring file 1)))
+	        ;; Replace any invalid file-name characters, then
+	        ;; prepend the leading slash back.
+                (setq file (concat "/" (convert-standard-filename file))))
+               (t
+	        ;; Replace any invalid file-name characters.
+	        (setq file (expand-file-name (convert-standard-filename file)))
+	        (if (eq (aref file 1) ?:)
+		    (setq file (concat "/"
+				       "drive_"
+				       (char-to-string (downcase (aref file 0)))
+				       (if (eq (aref file 2) ?/)
+					   ""
+				         "/")
+				       (substring file 2)))))))
 	    ;; Make the name unique by substituting directory
 	    ;; separators.  It may not really be worth bothering about
 	    ;; doubling `!'s in the original name...
@@ -5143,7 +5199,9 @@ Before and after saving the buffer, this function runs
 This allows you to stop `save-some-buffers' from asking
 about certain files that you'd usually rather not save."
   :group 'auto-save
-  :type 'function
+  ;; FIXME nil should not be a valid option, let alone the default,
+  ;; eg so that add-function can be used.
+  :type '(choice (const :tag "Default" nil) function)
   :version "26.1")
 
 (defun save-some-buffers (&optional arg pred)
@@ -5190,12 +5248,9 @@ change the additional actions you can take on files."
                     (not (buffer-base-buffer buffer))
                     (or
                      (buffer-file-name buffer)
-                     (and pred
-                          (progn
-                            (set-buffer buffer)
-                            (and buffer-offer-save (> (buffer-size) 0))))
-                     (buffer-local-value
-                      'write-contents-functions buffer))
+                     (with-current-buffer buffer
+                       (or (eq buffer-offer-save 'always)
+                           (and pred buffer-offer-save (> (buffer-size) 0)))))
                     (or (not (functionp pred))
                         (with-current-buffer buffer (funcall pred)))
                     (if arg
@@ -5336,7 +5391,7 @@ instance of such commands."
   "Make directory DIR if it is not already a directory.  Return nil."
   (condition-case err
       (make-directory-internal dir)
-    (file-already-exists
+    (error
      (unless (file-directory-p dir)
        (signal (car err) (cdr err))))))
 
@@ -5372,7 +5427,7 @@ raised."
 	  (while (progn
 		   (setq parent (directory-file-name
 				 (file-name-directory dir)))
-		   (condition-case err
+		   (condition-case ()
 		       (files--ensure-directory dir)
 		     (file-missing
 		      ;; Do not loop if root does not exist (Bug#2309).
@@ -5544,16 +5599,14 @@ into NEWNAME instead."
 	     ;; If NEWNAME is not a directory name, create it;
 	     ;; that is where we will copy the files of DIRECTORY.
 	     (make-directory newname parents))
-	    ;; If NEWNAME is a directory name and COPY-CONTENTS
-	    ;; is nil, copy into NEWNAME/[DIRECTORY-BASENAME].
-	    ((not copy-contents)
-	     (setq newname (concat newname
-			    (file-name-nondirectory directory)))
-	     (and (file-exists-p newname)
-		  (not (file-directory-p newname))
-		  (error "Cannot overwrite non-directory %s with a directory"
-			 newname))
-	     (make-directory newname t)))
+	    ;; NEWNAME is a directory name.  If COPY-CONTENTS is non-nil,
+	    ;; create NEWNAME if it is not already a directory;
+	    ;; otherwise, create NEWNAME/[DIRECTORY-BASENAME].
+	    ((if copy-contents
+		 (or parents (not (file-directory-p newname)))
+	       (setq newname (concat newname
+				     (file-name-nondirectory directory))))
+	     (make-directory (directory-file-name newname) parents)))
 
       ;; Copy recursively.
       (dolist (file
@@ -5565,7 +5618,7 @@ into NEWNAME instead."
 	      (filetype (car (file-attributes file))))
 	  (cond
 	   ((eq filetype t)       ; Directory but not a symlink.
-	    (copy-directory file newname keep-time parents))
+	    (copy-directory file target keep-time parents t))
 	   ((stringp filetype)    ; Symbolic link
 	    (make-symbolic-link filetype target t))
 	   ((copy-file file target t keep-time)))))
@@ -5854,7 +5907,11 @@ an auto-save file."
       (error "%s is an auto-save file" (abbreviate-file-name file)))
   (let ((file-name (let ((buffer-file-name file))
 		     (make-auto-save-file-name))))
-    (cond ((if (file-exists-p file)
+    (cond ((and (file-exists-p file)
+                (not (file-exists-p file-name)))
+           (error "Auto save file %s does not exist"
+                  (abbreviate-file-name file-name)))
+          ((if (file-exists-p file)
 	       (not (file-newer-than-file-p file-name file))
 	     (not (file-exists-p file-name)))
 	   (error "Auto-save file %s not current"
@@ -6386,58 +6443,31 @@ if you want to specify options, use `directory-free-space-args'.
 
 A value of nil disables this feature.
 
-If the function `file-system-info' is defined, it is always used in
-preference to the program given by this variable."
+This variable is obsolete; Emacs no longer uses it."
   :type '(choice (string :tag "Program") (const :tag "None" nil))
   :group 'dired)
+(make-obsolete-variable 'directory-free-space-program
+			"ignored, as Emacs uses `file-system-info' instead"
+			"27.1")
 
 (defcustom directory-free-space-args
   (purecopy (if (eq system-type 'darwin) "-k" "-Pk"))
   "Options to use when running `directory-free-space-program'."
   :type 'string
   :group 'dired)
+(make-obsolete-variable 'directory-free-space-args
+			"ignored, as Emacs uses `file-system-info' instead"
+			"27.1")
 
 (defun get-free-disk-space (dir)
   "Return the amount of free space on directory DIR's file system.
 The return value is a string describing the amount of free
 space (normally, the number of free 1KB blocks).
 
-This function calls `file-system-info' if it is available, or
-invokes the program specified by `directory-free-space-program'
-and `directory-free-space-args'.  If the system call or program
-is unsuccessful, or if DIR is a remote directory, this function
-returns nil."
-  (unless (file-remote-p (expand-file-name dir))
-    ;; Try to find the number of free blocks.  Non-Posix systems don't
-    ;; always have df, but might have an equivalent system call.
-    (if (fboundp 'file-system-info)
-	(let ((fsinfo (file-system-info dir)))
-	  (if fsinfo
-	      (format "%.0f" (/ (nth 2 fsinfo) 1024))))
-      (setq dir (expand-file-name dir))
-      (save-match-data
-	(with-temp-buffer
-	  (when (and directory-free-space-program
-		     ;; Avoid failure if the default directory does
-		     ;; not exist (Bug#2631, Bug#3911).
-                     (let ((default-directory
-                             (locate-dominating-file dir 'file-directory-p)))
-                       (eq (process-file directory-free-space-program
-					 nil t nil
-					 directory-free-space-args
-                                         (file-relative-name dir))
-			   0)))
-	    ;; Assume that the "available" column is before the
-	    ;; "capacity" column.  Find the "%" and scan backward.
-	    (goto-char (point-min))
-	    (forward-line 1)
-	    (when (re-search-forward
-		   "[[:space:]]+[^[:space:]]+%[^%]*$"
-		   (line-end-position) t)
-	      (goto-char (match-beginning 0))
-	      (let ((endpt (point)))
-		(skip-chars-backward "^[:space:]")
-		(buffer-substring-no-properties (point) endpt)))))))))
+If DIR's free space cannot be obtained, this function returns nil."
+  (let ((avail (nth 2 (file-system-info dir))))
+    (if avail
+	(format "%.0f" (/ avail 1024)))))
 
 ;; The following expression replaces `dired-move-to-filename-regexp'.
 (defvar directory-listing-before-filename-regexp
@@ -6928,60 +6958,67 @@ only these files will be asked to be saved."
 ;; We depend on being the last handler on the list,
 ;; so that anything else which does need handling
 ;; has been handled already.
-;; So it is safe for us to inhibit *all* magic file name handlers.
+;; So it is safe for us to inhibit *all* magic file name handlers for
+;; operations, which return a file name.  See Bug#29579.
 
 (defun file-name-non-special (operation &rest arguments)
-  (let ((file-name-handler-alist nil)
-	(default-directory
-          ;; Some operations respect file name handlers in
-          ;; `default-directory'.  Because core function like
-          ;; `call-process' don't care about file name handlers in
-          ;; `default-directory', we here have to resolve the
-          ;; directory into a local one.  For `process-file',
-          ;; `start-file-process', and `shell-command', this fixes
-          ;; Bug#25949.
-	  (if (memq operation '(insert-directory process-file start-file-process
-                                                 shell-command))
-	      (directory-file-name
-	       (expand-file-name
-		(unhandled-file-name-directory default-directory)))
-	    default-directory))
-	;; Get a list of the indices of the args which are file names.
-	(file-arg-indices
-	 (cdr (or (assq operation
-			;; The first six are special because they
-			;; return a file name.  We want to include the /:
-			;; in the return value.
-			;; So just avoid stripping it in the first place.
-			'((expand-file-name . nil)
-			  (file-name-directory . nil)
-			  (file-name-as-directory . nil)
-			  (directory-file-name . nil)
-			  (file-name-sans-versions . nil)
-			  (find-backup-file-name . nil)
-			  ;; `identity' means just return the first arg
-			  ;; not stripped of its quoting.
-			  (substitute-in-file-name identity)
-			  ;; `add' means add "/:" to the result.
-			  (file-truename add 0)
-			  (insert-file-contents insert-file-contents 0)
-			  ;; `unquote-then-quote' means set buffer-file-name
-			  ;; temporarily to unquoted filename.
-			  (verify-visited-file-modtime unquote-then-quote)
-			  ;; List the arguments which are filenames.
-			  (file-name-completion 1)
-			  (file-name-all-completions 1)
-			  (write-region 2 5)
-			  (rename-file 0 1)
-			  (copy-file 0 1)
-			  (make-symbolic-link 0 1)
-			  (add-name-to-file 0 1)))
-		  ;; For all other operations, treat the first argument only
-		  ;; as the file name.
-		  '(nil 0))))
-	method
-	;; Copy ARGUMENTS so we can replace elements in it.
-	(arguments (copy-sequence arguments)))
+  (let* ((op-returns-file-name-list
+          '(expand-file-name file-name-directory file-name-as-directory
+                             directory-file-name file-name-sans-versions
+                             find-backup-file-name file-remote-p))
+         (file-name-handler-alist
+          (and
+           (not (memq operation op-returns-file-name-list))
+           file-name-handler-alist))
+	 (default-directory
+           ;; Some operations respect file name handlers in
+           ;; `default-directory'.  Because core function like
+           ;; `call-process' don't care about file name handlers in
+           ;; `default-directory', we here have to resolve the
+           ;; directory into a local one.  For `process-file',
+           ;; `start-file-process', and `shell-command', this fixes
+           ;; Bug#25949.
+	   (if (memq operation
+                     '(insert-directory process-file start-file-process
+                                        shell-command))
+	       (directory-file-name
+	        (expand-file-name
+		 (unhandled-file-name-directory default-directory)))
+	     default-directory))
+	 ;; Get a list of the indices of the args which are file names.
+	 (file-arg-indices
+	  (cdr (or (assq operation
+			 ;; The first seven are special because they
+			 ;; return a file name.  We want to include the /:
+			 ;; in the return value.
+			 ;; So just avoid stripping it in the first place.
+                         (append
+                          (mapcar 'list op-returns-file-name-list)
+			  '(;; `identity' means just return the first arg
+			    ;; not stripped of its quoting.
+			    (substitute-in-file-name identity)
+			    ;; `add' means add "/:" to the result.
+			    (file-truename add 0)
+			    (insert-file-contents insert-file-contents 0)
+			    ;; `unquote-then-quote' means set buffer-file-name
+			    ;; temporarily to unquoted filename.
+			    (verify-visited-file-modtime unquote-then-quote)
+			    ;; List the arguments which are filenames.
+			    (file-name-completion 1)
+			    (file-name-all-completions 1)
+			    (write-region 2 5)
+			    (rename-file 0 1)
+			    (copy-file 0 1)
+			    (copy-directory 0 1)
+			    (file-in-directory-p 0 1)
+			    (make-symbolic-link 0 1)
+			    (add-name-to-file 0 1))))
+		   ;; For all other operations, treat the first argument only
+		   ;; as the file name.
+		   '(nil 0))))
+	 method
+	 ;; Copy ARGUMENTS so we can replace elements in it.
+	 (arguments (copy-sequence arguments)))
     (if (symbolp (car file-arg-indices))
 	(setq method (pop file-arg-indices)))
     ;; Strip off the /: from the file names that have it.

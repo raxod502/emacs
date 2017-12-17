@@ -99,6 +99,7 @@ When selecting a viewer for a given MIME type, the first viewer
 in this list with a matching MIME-TYPE and successful TEST is
 selected.  Only if none matches, the standard `mailcap-mime-data'
 is consulted."
+  :version "26.1"
   :type '(repeat
 	  (list
 	   (choice (function :tag "Function or mode")
@@ -165,9 +166,13 @@ is consulted."
       (type   . "application/zip")
       ("copiousoutput"))
      ("pdf"
+      (viewer . pdf-view-mode)
+      (type . "application/pdf")
+      (test . window-system))
+     ("pdf"
       (viewer . doc-view-mode)
       (type . "application/pdf")
-      (test . (eq window-system 'x)))
+      (test . window-system))
      ("pdf"
       (viewer . "gv -safer %s")
       (type . "application/pdf")
@@ -319,7 +324,7 @@ means the viewer is always valid.  If it is a Lisp function, it is
 called with a list of items from any extra fields from the
 Content-Type header as argument to return a boolean value for the
 validity.  Otherwise, if it is a non-function Lisp symbol or list
-whose car is a symbol, it is `eval'led to yield the validity.  If it
+whose car is a symbol, it is `eval'uated to yield the validity.  If it
 is a string or list of strings, it represents a shell command to run
 to return a true or false shell value for the validity.")
 (put 'mailcap-mime-data 'risky-local-variable t)

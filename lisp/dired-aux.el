@@ -974,8 +974,8 @@ command with a prefix argument (the value does not matter)."
     ;; "tar -zxf" isn't used because it's not available on the
     ;; Solaris10 version of tar. Solaris10 becomes obsolete in 2021.
     ;; Same thing on AIX 7.1.
-    ("\\.tar\\.gz\\'" "" "gzip -dc %i | tar -xv")
-    ("\\.tgz\\'" "" "gzip -dc %i | tar -xv")
+    ("\\.tar\\.gz\\'" "" "gzip -dc %i | tar -xf -")
+    ("\\.tgz\\'" "" "gzip -dc %i | tar -xf -")
     ("\\.gz\\'" "" "gunzip")
     ("\\.Z\\'" "" "uncompress")
     ;; For .z, try gunzip.  It might be an old gzip file,
@@ -990,7 +990,7 @@ command with a prefix argument (the value does not matter)."
     ;; This item controls naming for compression.
     ("\\.tar\\'" ".tgz" nil)
     ;; This item controls the compression of directories
-    (":" ".tar.gz" "tar -c %i | gzip -c9 > %o"))
+    (":" ".tar.gz" "tar -cf - %i | gzip -c9 > %o"))
   "Control changes in file name suffixes for compression and uncompression.
 Each element specifies one transformation rule, and has the form:
   (REGEXP NEW-SUFFIX PROGRAM)
@@ -1007,14 +1007,14 @@ Otherwise, the rule is a compression rule, and compression is done with gzip.
 ARGS are command switches passed to PROGRAM.")
 
 (defvar dired-compress-files-alist
-  '(("\\.tar\\.gz\\'" . "tar -c %i | gzip -c9 > %o")
-    ("\\.tar\\.bz2\\'" . "tar -c %i | bzip2 -c9 > %o")
-    ("\\.tar\\.xz\\'" . "tar -c %i | xz -c9 > %o")
+  '(("\\.tar\\.gz\\'" . "tar -cf - %i | gzip -c9 > %o")
+    ("\\.tar\\.bz2\\'" . "tar -cf - %i | bzip2 -c9 > %o")
+    ("\\.tar\\.xz\\'" . "tar -cf - %i | xz -c9 > %o")
     ("\\.zip\\'" . "zip %o -r --filesync %i"))
   "Control the compression shell command for `dired-do-compress-to'.
 
 Each element is (REGEXP . CMD), where REGEXP is the name of the
-archive to which you want to compress, and CMD the the
+archive to which you want to compress, and CMD is the
 corresponding command.
 
 Within CMD, %i denotes the input file(s), and %o denotes the
@@ -1548,6 +1548,24 @@ Special value `always' suppresses confirmation."
 
 (declare-function make-symbolic-link "fileio.c")
 
+(defcustom dired-create-destination-dirs nil
+  "Whether Dired should create destination dirs when copying/removing files.
+If nil, don't create them.
+If `always', create them without ask.
+If `ask', ask for user confirmation."
+  :type '(choice (const :tag "Never create non-existent dirs" nil)
+		 (const :tag "Always create non-existent dirs" always)
+		 (const :tag "Ask for user confirmation" ask))
+  :group 'dired
+  :version "27.1")
+
+(defun dired-maybe-create-dirs (dir)
+  "Create DIR if doesn't exist according to `dired-create-destination-dirs'."
+  (when (and dired-create-destination-dirs (not (file-exists-p dir)))
+    (if (or (eq dired-create-destination-dirs 'always)
+            (yes-or-no-p (format "Create destination dir `%s'? " dir)))
+        (dired-create-directory dir))))
+
 (defun dired-copy-file-recursive (from to ok-flag &optional
 				       preserve-time top recursive)
   (when (and (eq t (car (file-attributes from)))
@@ -1564,6 +1582,7 @@ Special value `always' suppresses confirmation."
 	  (if (stringp (car attrs))
 	      ;; It is a symlink
 	      (make-symbolic-link (car attrs) to ok-flag)
+            (dired-maybe-create-dirs (file-name-directory to))
 	    (copy-file from to ok-flag preserve-time))
 	(file-date-error
 	 (push (dired-make-relative from)
@@ -1573,6 +1592,7 @@ Special value `always' suppresses confirmation."
 ;;;###autoload
 (defun dired-rename-file (file newname ok-if-already-exists)
   (dired-handle-overwrite newname)
+  (dired-maybe-create-dirs (file-name-directory newname))
   (rename-file file newname ok-if-already-exists) ; error is caught in -create-files
   ;; Silently rename the visited file of any buffer visiting this file.
   (and (get-file-buffer file)
@@ -1965,6 +1985,7 @@ Optional arg HOW-TO determines how to treat the target.
 ;;;###autoload
 (defun dired-create-directory (directory)
   "Create a directory called DIRECTORY.
+Parent directories of DIRECTORY are created as needed.
 If DIRECTORY already exists, signal an error."
   (interactive
    (list (read-file-name "Create directory: " (dired-current-directory))))
@@ -2747,9 +2768,9 @@ Intended to be added to `isearch-mode-hook'."
   (remove-hook 'isearch-mode-end-hook 'dired-isearch-filenames-end t))
 
 (defun dired-isearch-filter-filenames (beg end)
-  "Test whether the current search hit is a file name.
-Return non-nil if the text from BEG to END is part of a file
-name (has the text property `dired-filename')."
+  "Test whether some part of the current search match is inside a file name.
+This function returns non-nil if some part of the text between BEG and END
+is part of a file name (i.e., has the text property `dired-filename')."
   (text-property-not-all (min beg end) (max beg end)
 			 'dired-filename nil))
 

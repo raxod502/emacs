@@ -443,7 +443,7 @@ Possible values:
 `other-window'	  Show new file in another window (same frame)
 `display'	  Display file in another window without selecting to it
 `other-frame'	  Show new file in another frame
-`maybe-frame'	  If a file is visible in another frame, prompt to ask if you
+`maybe-frame'	  If a file is visible in another frame, prompt to ask if
 		  you want to see the file in the same window of the current
   		  frame or in the other frame
 `raise-frame'     If a file is visible in another frame, raise that
@@ -4302,7 +4302,7 @@ For details of keybindings, see `ido-find-file'."
 
 ;;;###autoload
 (defun ido-find-alternate-file ()
-  "Switch to another file and show it in another window.
+  "Find another file, select its buffer, kill previous buffer.
 The file name is selected interactively by typing a substring.
 For details of keybindings, see `ido-find-file'."
   (interactive)
@@ -4701,7 +4701,7 @@ Modified from `icomplete-completions'."
     (if (and ido-use-faces comps)
 	(let* ((fn (ido-name (car comps)))
 	       (ln (length fn)))
-	  (setq first (format "%s" fn))
+	  (setq first (copy-sequence fn))
 	  (put-text-property 0 ln 'face
 			     (if (= (length comps) 1)
                                  (if ido-incomplete-regexp
