@@ -250,8 +250,8 @@ packages just make some new commands available, while others have more
 wide-ranging effects on the Emacs session.  For such information,
 consult the package's help buffer.
 
-  By default, Emacs also automatically loads all installed packages in
-subsequent Emacs sessions.  This happens at startup, before processing
+  After a package is installed, it is automatically loaded by Emacs in
+all subsequent sessions.  This happens at startup, before processing
 the init file but after processing the early init file (@pxref{Early
 Init File,,, elisp, The Emacs Lisp Reference Manual}).  As an
 exception, Emacs does not load packages at startup if invoked with the
@@ -260,7 +260,8 @@ exception, Emacs does not load packages at startup if invoked with the
 @vindex package-enable-at-startup
   To disable automatic package loading, change the variable
 @code{package-enable-at-startup} to @code{nil}.  You must do this in
-the early init file.  Currently it cannot be done via Customize.
+the early init file, as the variable is read before loading the
+regular init file.  Currently it cannot be done via Customize.
 
 @vindex package-load-list
   For finer control over package loading, you can use the variable

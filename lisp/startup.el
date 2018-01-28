@@ -314,12 +314,9 @@ and `window-setup-hook'.")
 
 (defvar early-init-file nil
   "File name, including directory, of user's early init file.
-If the file loaded had extension `.elc', and the corresponding
-source file exists, this variable contains the name of source
-file, suitable for use by functions like `custom-save-all' which
-edit the init file.  While Emacs loads and evaluates the init
-file, value is the real name of the file, regardless of whether
-or not it has the `.elc' extension.")
+See `user-init-file'.  The only difference is that
+`early-init-file' is not set during the course of evaluating the
+early init file.")
 
 (defvar keyboard-type nil
   "The brand of keyboard you are using.
@@ -880,14 +877,14 @@ If STYLE is nil, display appropriately for the terminal."
             (aset standard-display-table char nil)))))))
 
 (defun load-user-init-file
-    (compute-filename &optional compute-alternate-filename load-defaults)
+    (filename-function &optional alternate-filename-function load-defaults)
   "Load a user init-file.
-COMPUTE-FILENAME is called with no arguments and should return
-the name of the init-file to load. If this file cannot be loaded,
-and COMPUTE-ALTERNATE-FILENAME is non-nil, then it is called with
-no arguments and should return the name of an alternate init-file
-to load. If LOAD-DEFAULTS is non-nil, then load default.el after
-the init-file.
+FILENAME-FUNCTION is called with no arguments and should return
+the name of the init-file to load.  If this file cannot be
+loaded, and ALTERNATE-FILENAME-FUNCTION is non-nil, then it is
+called with no arguments and should return the name of an
+alternate init-file to load.  If LOAD-DEFAULTS is non-nil, then
+load default.el after the init-file.
 
 This function sets `user-init-file' to the name of the loaded
 init-file, or to a default value if loading is not possible."
@@ -904,7 +901,7 @@ init-file, or to a default value if loading is not possible."
           (read-init-file
            (lambda ()
              (when init-file-user
-               (let ((init-file-name (funcall compute-filename)))
+               (let ((init-file-name (funcall filename-function)))
 
                  ;; If `user-init-file' is t, then `load' will store
                  ;; the name of the file that it loads into
@@ -912,15 +909,15 @@ init-file, or to a default value if loading is not possible."
                  (setq user-init-file t)
                  (load init-file-name 'noerror 'nomessage)
 
-                 (when (eq user-init-file t)
-                   (let ((alt-file-name (funcall compute-alternate-filename)))
-                     (load alt-file-name 'noerror 'nomessage)
+                 (when (and (eq user-init-file t) alternate-filename-function)
+                   (load (funcall alternate-filename-function)
+                         alt-file-name 'noerror 'nomessage))
 
-                     ;; If we did not find the user's init file, set
-                     ;; user-init-file conclusively.  Don't let it be
-                     ;; set from default.el.
-                     (when (eq user-init-file t)
-                       (setq user-init-file init-file-name)))))
+                 ;; If we did not find the user's init file, set
+                 ;; user-init-file conclusively.  Don't let it be
+                 ;; set from default.el.
+                 (when (eq user-init-file t)
+                   (setq user-init-file init-file-name)))
 
                ;; If we loaded a compiled file, set `user-init-file' to
                ;; the source version if that exists.
@@ -950,13 +947,7 @@ init-file, or to a default value if loading is not possible."
           ;; debug.
           (funcall read-init-file)
         (condition-case error
-            (progn
-              (funcall read-init-file)
-
-              ;; If a previous init-file had an error, don't forget
-              ;; about that.
-              (unless init-file-had-error
-                (setq init-file-had-error nil)))
+            (funcall read-init-file)
           (error
            (display-warning
             'initialization
