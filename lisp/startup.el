@@ -911,7 +911,7 @@ init-file, or to a default value if loading is not possible."
 
                  (when (and (eq user-init-file t) alternate-filename-function)
                    (load (funcall alternate-filename-function)
-                         alt-file-name 'noerror 'nomessage))
+                         'noerror 'nomessage))
 
                  ;; If we did not find the user's init file, set
                  ;; user-init-file conclusively.  Don't let it be
