@@ -1,6 +1,6 @@
 ;;; spam.el --- Identifying spam
 
-;; Copyright (C) 2002-2017 Free Software Foundation, Inc.
+;; Copyright (C) 2002-2018 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; Maintainer: Ted Zlatanov <tzz@lifelogs.com>
@@ -366,9 +366,6 @@ Only meaningful if you enable `spam-use-blackholes'."
     (t :inverse-video t))
   "Face for spam-marked articles."
   :group 'spam)
-;; backward-compatibility alias
-(put 'spam-face 'face-alias 'spam)
-(put 'spam-face 'obsolete-face "22.1")
 
 (defcustom spam-face 'spam
   "Face for spam-marked articles."

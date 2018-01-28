@@ -1,6 +1,6 @@
 ;;; cc-engine.el --- core syntax guessing engine for CC mode -*- coding: utf-8 -*-
 
-;; Copyright (C) 1985, 1987, 1992-2017 Free Software Foundation, Inc.
+;; Copyright (C) 1985, 1987, 1992-2018 Free Software Foundation, Inc.
 
 ;; Authors:    2001- Alan Mackenzie
 ;;             1998- Martin Stjernholm
@@ -238,8 +238,8 @@
 ;; `c-macro-cache'.
 (defvar c-macro-cache-no-comment nil)
 (make-variable-buffer-local 'c-macro-cache-no-comment)
-;; Either nil, or the last character of the macro currently represented by
-;; `c-macro-cache' which isn't in a comment. */
+;; Either nil, or the position of a comment which is open at the end of the
+;; macro represented by `c-macro-cache'.
 
 (defun c-invalidate-macro-cache (beg _end)
   ;; Called from a before-change function.  If the change region is before or
@@ -382,8 +382,9 @@ comment at the start of cc-engine.el for more info."
     (point)))
 
 (defun c-no-comment-end-of-macro ()
-  ;; Go to the end of a CPP directive, or a pos just before which isn't in a
-  ;; comment.  For this purpose, open strings are ignored.
+  ;; Go to the start of the comment which is open at the end of the current
+  ;; CPP directive, or to the end of that directive.  For this purpose, open
+  ;; strings are ignored.
   ;;
   ;; This function must only be called from the beginning of a CPP construct.
   ;;
@@ -401,7 +402,7 @@ comment at the start of cc-engine.el for more info."
 	(setq s (parse-partial-sexp here there)))
       (when (and (nth 4 s)
 		 (not (eq (nth 7 s) 'syntax-table))) ; no pseudo comments.
-	(goto-char (1- (nth 8 s))))
+	(goto-char (nth 8 s)))
       (setq c-macro-cache-no-comment (point)))
     (point)))
 
@@ -3862,14 +3863,7 @@ comment at the start of cc-engine.el for more info."
   (if (eval-when-compile (memq 'category-properties c-emacs-features))
       ;; Emacs
       (c-with-<->-as-parens-suppressed
-       (if (and c-state-old-cpp-beg
-		(< c-state-old-cpp-beg here))
-	   (c-with-all-but-one-cpps-commented-out
-	    c-state-old-cpp-beg
-	    c-state-old-cpp-end
-	    (c-invalidate-state-cache-1 here))
-	 (c-with-cpps-commented-out
-	  (c-invalidate-state-cache-1 here))))
+       (c-invalidate-state-cache-1 here))
     ;; XEmacs
     (c-invalidate-state-cache-1 here)))
 
@@ -3902,12 +3896,7 @@ comment at the start of cc-engine.el for more info."
 	(if (eval-when-compile (memq 'category-properties c-emacs-features))
 	    ;; Emacs
 	    (c-with-<->-as-parens-suppressed
-	     (if (and here-cpp-beg (> here-cpp-end here-cpp-beg))
-		 (c-with-all-but-one-cpps-commented-out
-		  here-cpp-beg here-cpp-end
-		  (c-parse-state-1))
-	       (c-with-cpps-commented-out
-		(c-parse-state-1))))
+	     (c-parse-state-1))
 	  ;; XEmacs
 	  (c-parse-state-1))
       (setq c-state-old-cpp-beg
@@ -8616,6 +8605,7 @@ comment at the start of cc-engine.el for more info."
 		 ;; construct here in C, since we want to recognize this as a
 		 ;; typeless function declaration.
 		 (not (and (c-major-mode-is 'c-mode)
+			   (not got-prefix)
 			   (or (eq context 'top) make-top)
 			   (eq (char-after) ?\)))))
 	    (if (eq (char-after) ?\))
@@ -8645,31 +8635,39 @@ comment at the start of cc-engine.el for more info."
 	    ;; (con|de)structors in C++ and `c-typeless-decl-kwds'
 	    ;; style declarations.  That isn't applicable in an
 	    ;; arglist context, though.
-	    (when (and (= paren-depth 1)
-			  (not got-prefix-before-parens)
-			  (not (eq at-type t))
-			  (or backup-at-type
-			      maybe-typeless
-			      backup-maybe-typeless
-			      (when c-recognize-typeless-decls
-				(and (memq context '(nil top))
-				     ;; Deal with C++11's "copy-initialization"
-				     ;; where we have <type>(<constant>), by
-				     ;; contrasting with a typeless
-				     ;; <name>(<type><parameter>, ...).
-				     (save-excursion
-				       (goto-char after-paren-pos)
-				       (c-forward-syntactic-ws)
-				       (or (c-forward-type)
-					   ;; Recognize a top-level typeless
-					   ;; function declaration in C.
-					   (and (c-major-mode-is 'c-mode)
-						(or (eq context 'top) make-top)
-						(eq (char-after) ?\))))))))
-			  (setq pos (c-up-list-forward (point)))
-			  (eq (char-before pos) ?\)))
+	    (when (and (> paren-depth 0)
+		       (not got-prefix-before-parens)
+		       (not (eq at-type t))
+		       (or backup-at-type
+			   maybe-typeless
+			   backup-maybe-typeless
+			   (when c-recognize-typeless-decls
+			     (and (memq context '(nil top))
+				  ;; Deal with C++11's "copy-initialization"
+				  ;; where we have <type>(<constant>), by
+				  ;; contrasting with a typeless
+				  ;; <name>(<type><parameter>, ...).
+				  (save-excursion
+				    (goto-char after-paren-pos)
+				    (c-forward-syntactic-ws)
+				    (or (c-forward-type)
+					;; Recognize a top-level typeless
+					;; function declaration in C.
+					(and (c-major-mode-is 'c-mode)
+					     (or (eq context 'top) make-top)
+					     (eq (char-after) ?\))))))))
+		       (let ((pd paren-depth))
+			 (setq pos (point))
+			 (catch 'pd
+			   (while (> pd 0)
+			     (setq pos (c-up-list-forward pos))
+			     (when (or (null pos)
+				       (not (eq (char-before pos) ?\))))
+			       (throw 'pd nil))
+			     (goto-char pos)
+			     (setq pd (1- pd)))
+			   t)))
 		 (c-fdoc-shift-type-backward)
-		 (goto-char pos)
 		 t)))
 
 	(c-forward-syntactic-ws))
@@ -10527,6 +10525,17 @@ comment at the start of cc-engine.el for more info."
 		((and class-key
 		      (looking-at class-key))
 		 (setq braceassignp nil))
+		((and c-has-compound-literals
+		      (looking-at c-return-key))
+		 (setq braceassignp t)
+		 nil)
+		((and c-has-compound-literals
+		      (eq (char-after) ?,))
+		 (save-excursion
+		   (when (and (c-go-up-list-backward nil lim)
+			      (eq (char-after) ?\())
+		     (setq braceassignp t)
+		     nil)))
 		((eq (char-after) ?=)
 		 ;; We've seen a =, but must check earlier tokens so
 		 ;; that it isn't something that should be ignored.
@@ -10565,9 +10574,14 @@ comment at the start of cc-engine.el for more info."
 				     ))))
 			   nil)
 			  (t t))))))
-	  (if (and (eq braceassignp 'dontknow)
-		   (/= (c-backward-token-2 1 t lim) 0))
-	      (setq braceassignp nil)))
+	  (when (and (eq braceassignp 'dontknow)
+		     (/= (c-backward-token-2 1 t lim) 0))
+	    (if (save-excursion
+		  (and c-has-compound-literals
+		       (eq (c-backward-token-2 1 nil lim) 0)
+		       (eq (char-after) ?\()))
+		(setq braceassignp t)
+	      (setq braceassignp nil))))
 
 	(cond
 	 (braceassignp
@@ -10932,7 +10946,7 @@ comment at the start of cc-engine.el for more info."
 			   (c-on-identifier)))
 		    (and c-special-brace-lists
 			 (c-looking-at-special-brace-list))
-		    (and (c-major-mode-is 'c++-mode)
+		    (and c-has-compound-literals
 			 (save-excursion
 			   (goto-char block-follows)
 			   (not (c-looking-at-statement-block)))))
@@ -12439,6 +12453,11 @@ comment at the start of cc-engine.el for more info."
 	 ;; in-expression block or brace list.  C.f. cases 4, 16A
 	 ;; and 17E.
 	 ((and (eq char-after-ip ?{)
+	       (or (not (eq (char-after containing-sexp) ?\())
+		   (save-excursion
+		     (and c-opt-inexpr-brace-list-key
+			  (eq (c-beginning-of-statement-1 lim t nil t) 'same)
+			  (looking-at c-opt-inexpr-brace-list-key))))
 	       (progn
 		 (setq placeholder (c-inside-bracelist-p (point)
 							 paren-state
@@ -12565,11 +12584,7 @@ comment at the start of cc-engine.el for more info."
 			    (save-excursion
 			      (goto-char containing-sexp)
 			      (c-looking-at-special-brace-list)))
-		       (c-inside-bracelist-p containing-sexp paren-state t)
-		       (save-excursion
-			 (goto-char containing-sexp)
-			 (and (eq (char-after) ?{)
-			      (not (c-looking-at-statement-block)))))))
+		       (c-inside-bracelist-p containing-sexp paren-state t))))
 	(cond
 
 	 ;; CASE 9A: In the middle of a special brace list opener.

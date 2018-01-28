@@ -1,6 +1,6 @@
 ;;; tramp-sh.el --- Tramp access functions for (s)sh-like connections  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1998-2017 Free Software Foundation, Inc.
+;; Copyright (C) 1998-2018 Free Software Foundation, Inc.
 
 ;; (copyright statements below in code to be updated with the above notice)
 
@@ -798,7 +798,7 @@ on the remote host.")
 (defconst tramp-perl-encode
   "%s -e '
 # This script contributed by Juanma Barranquero <lektu@terra.es>.
-# Copyright (C) 2002-2017 Free Software Foundation, Inc.
+# Copyright (C) 2002-2018 Free Software Foundation, Inc.
 use strict;
 
 my %%trans = do {
@@ -836,7 +836,7 @@ This string is passed to `format', so percent characters need to be doubled.")
 (defconst tramp-perl-decode
   "%s -e '
 # This script contributed by Juanma Barranquero <lektu@terra.es>.
-# Copyright (C) 2002-2017 Free Software Foundation, Inc.
+# Copyright (C) 2002-2018 Free Software Foundation, Inc.
 use strict;
 
 my %%trans = do {
@@ -2507,7 +2507,7 @@ The method used must be an out-of-band method."
 			     (tramp-get-connection-buffer v)
 			     command))))
 		  (tramp-message orig-vec 6 "%s" command)
-		  (tramp-set-connection-property p "vector" orig-vec)
+		  (process-put p 'vector orig-vec)
 		  (process-put p 'adjust-window-size-function 'ignore)
 		  (set-process-query-on-exit-flag p nil)
 
@@ -2822,7 +2822,7 @@ the result will be a local, non-Tramp, file name."
 (defun tramp-process-sentinel (proc event)
   "Flush file caches."
   (unless (process-live-p proc)
-    (let ((vec (tramp-get-connection-property proc "vector" nil)))
+    (let ((vec (process-get proc 'vector)))
       (when vec
 	(tramp-message vec 5 "Sentinel called: `%S' `%s'" proc event)
         (tramp-flush-connection-properties proc)
@@ -3410,7 +3410,8 @@ the result will be a local, non-Tramp, file name."
 	;; Set the ownership.
         (when need-chown
           (tramp-set-file-uid-gid filename uid gid))
-	(when (or (eq visit t) (null visit) (stringp visit))
+	(when (and (null noninteractive)
+		   (or (eq visit t) (null visit) (stringp visit)))
 	  (tramp-message v 0 "Wrote %s" filename))
 	(run-hooks 'tramp-handle-write-region-hook)))))
 
@@ -3562,19 +3563,7 @@ Fall back to normal file name handler if no Tramp handler exists."
     (let ((default-directory (file-name-directory file-name))
 	  command events filter p sequence)
       (cond
-       ;; gvfs-monitor-dir.
-       ((setq command (tramp-get-remote-gvfs-monitor-dir v))
-	(setq filter 'tramp-sh-gvfs-monitor-dir-process-filter
-	      events
-	      (cond
-	       ((and (memq 'change flags) (memq 'attribute-change flags))
-		'(created changed changes-done-hint moved deleted
-			  attribute-changed))
-	       ((memq 'change flags)
-		'(created changed changes-done-hint moved deleted))
-	       ((memq 'attribute-change flags) '(attribute-changed)))
-	      sequence `(,command ,localname)))
-       ;; inotifywait.
+       ;; "inotifywait".
        ((setq command (tramp-get-remote-inotifywait v))
 	(setq filter 'tramp-sh-inotifywait-process-filter
 	      events
@@ -3592,6 +3581,20 @@ Fall back to normal file name handler if no Tramp handler exists."
 	      (mapcar
 	       (lambda (x) (intern-soft (replace-regexp-in-string "_" "-" x)))
 	       (split-string events "," 'omit))))
+       ;; "gvfs-monitor-dir" or "gio monitor".
+       ((setq command (tramp-get-remote-gvfs-monitor-dir v))
+	(setq filter 'tramp-sh-gvfs-monitor-dir-process-filter
+	      events
+	      (cond
+	       ((and (memq 'change flags) (memq 'attribute-change flags))
+		'(created changed changes-done-hint moved deleted
+			  attribute-changed))
+	       ((memq 'change flags)
+		'(created changed changes-done-hint moved deleted))
+	       ((memq 'attribute-change flags) '(attribute-changed)))
+	      sequence (if (string-match "/gio$" command)
+                           `(,command "monitor" ,localname)
+                         `(,command ,localname))))
        ;; None.
        (t (tramp-error
 	   v 'file-notify-error
@@ -3611,7 +3614,7 @@ Fall back to normal file name handler if no Tramp handler exists."
 	   "`%s' failed to start on remote host"
 	   (mapconcat 'identity sequence " "))
 	(tramp-message v 6 "Run `%s', %S" (mapconcat 'identity sequence " ") p)
-	(tramp-set-connection-property p "vector" v)
+	(process-put p 'vector v)
 	;; Needed for process filter.
 	(process-put p 'events events)
 	(process-put p 'watch-name localname)
@@ -3622,7 +3625,7 @@ Fall back to normal file name handler if no Tramp handler exists."
 	(tramp-accept-process-output p 1)
 	(unless (process-live-p p)
 	  (tramp-error
-	   v 'file-notify-error "Monitoring not supported for `%s'" file-name))
+	   p 'file-notify-error "Monitoring not supported for `%s'" file-name))
 	p))))
 
 (defun tramp-sh-gvfs-monitor-dir-process-filter (proc string)
@@ -3640,7 +3643,8 @@ file-notify events."
 	  ;; Attribute change is returned in unused wording.
 	  string (replace-regexp-in-string
 		  "ATTRIB CHANGED" "ATTRIBUTE_CHANGED" string))
-    (when (string-match "Monitoring not supported" string)
+    ;; https://bugs.launchpad.net/bugs/1742946
+    (when (string-match "Monitoring not supported\\|No locations given" string)
       (delete-process proc))
 
     (while (string-match
@@ -4026,7 +4030,7 @@ file exists and nonzero exit status otherwise."
   "Wait for shell prompt and barf if none appears.
 Looks at process PROC to see if a shell prompt appears in TIMEOUT
 seconds.  If not, it produces an error message with the given ERROR-ARGS."
-  (let ((vec (tramp-get-connection-property proc "vector" nil)))
+  (let ((vec (process-get proc 'vector)))
     (condition-case nil
 	(tramp-wait-for-regexp
 	 proc timeout
@@ -4114,7 +4118,7 @@ process to set up.  VEC specifies the connection."
 		   (memq 'utf-8-hfs (coding-system-list)))
 	  (setq cs-decode 'utf-8-hfs
 		cs-encode 'utf-8-hfs))
-	(set-buffer-process-coding-system cs-decode cs-encode)
+	(set-process-coding-system proc cs-decode cs-encode)
 	(tramp-message
 	 vec 5 "Setting coding system to `%s' and `%s'" cs-decode cs-encode)))
 
@@ -4717,7 +4721,8 @@ connection if a previous connection has died for some reason."
 	      (setenv "PS1" tramp-initial-end-of-output)
               (unless (stringp tramp-encoding-shell)
                 (tramp-error vec 'file-error "`tramp-encoding-shell' not set"))
-	      (let* ((target-alist (tramp-compute-multi-hops vec))
+	      (let* ((current-host (system-name))
+		     (target-alist (tramp-compute-multi-hops vec))
 		     ;; We will apply `tramp-ssh-controlmaster-options'
 		     ;; only for the first hop.
 		     (options (tramp-ssh-controlmaster-options vec))
@@ -4740,9 +4745,9 @@ connection if a previous connection has died for some reason."
 				     tramp-encoding-command-interactive)
 			     (list tramp-encoding-shell))))))
 
-		;; Set sentinel and query flag.
-		(tramp-set-connection-property p "vector" vec)
+		;; Set sentinel and query flag.  Initialize variables.
 		(set-process-sentinel p 'tramp-process-sentinel)
+		(process-put p 'vector vec)
 		(process-put p 'adjust-window-size-function 'ignore)
 		(set-process-query-on-exit-flag p nil)
 		(setq tramp-current-connection (cons vec (current-time)))
@@ -4799,8 +4804,9 @@ connection if a previous connection has died for some reason."
 
 		    ;; Check, whether there is a restricted shell.
 		    (dolist (elt tramp-restricted-shell-hosts-alist)
-		      (when (string-match elt l-host)
+		      (when (string-match elt current-host)
 			(setq r-shell t)))
+		    (setq current-host l-host)
 
 		    ;; Set password prompt vector.
 		    (tramp-set-connection-property
@@ -5459,7 +5465,8 @@ This command is returned only if `delete-by-moving-to-trash' is non-nil."
     ;; We distinguish "gvfs-monitor-dir.exe" from cygwin in order to
     ;; establish better timeouts in filenotify-tests.el.  Any better
     ;; distinction approach would be welcome!
-    (or (tramp-find-executable
+    (or (tramp-find-executable vec "gio" (tramp-get-remote-path vec) t t)
+	(tramp-find-executable
 	 vec "gvfs-monitor-dir.exe" (tramp-get-remote-path vec) t t)
 	(tramp-find-executable
 	 vec "gvfs-monitor-dir" (tramp-get-remote-path vec) t t))))

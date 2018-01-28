@@ -1,6 +1,6 @@
 ;;; gitmerge.el --- help merge one Emacs branch into another
 
-;; Copyright (C) 2010-2017 Free Software Foundation, Inc.
+;; Copyright (C) 2010-2018 Free Software Foundation, Inc.
 
 ;; Authors: David Engster <deng@randomsample.de>
 ;;          Stefan Monnier <monnier@iro.umontreal.ca>
@@ -50,10 +50,21 @@
 (defvar gitmerge-skip-regexp
   ;; We used to include "sync" in there, but in my experience it only
   ;; caused false positives.  --Stef
-  "back[- ]?port\\|cherry picked from commit\\|\\(do\\( no\\|n['’]\\)t\\|no need to\\) merge\\|\
-re-?generate\\|bump version\\|from trunk\\|Auto-commit"
+  (let ((skip "back[- ]?port\\|cherry picked from commit\\|\
+\\(do\\( no\\|n['’]\\)t\\|no need to\\) merge\\|\
+bump \\(Emacs \\)?version\\|Auto-commit"))
+    (if noninteractive skip
+      ;; "Regenerate" is quite prone to false positives.
+      ;; We only want to skip merging things like AUTHORS and ldefs-boot.
+      ;; These should be covered by "bump version" and "auto-commit".
+      ;; It doesn't do much harm if we merge one of those files by mistake.
+      ;; So it's better to err on the side of false negatives.
+      (concat skip "\\|re-?generate\\|from trunk")))
   "Regexp matching logs of revisions that might be skipped.
 `gitmerge-missing' will ask you if it should skip any matches.")
+
+(defvar gitmerge-minimum-missing 10
+  "Minimum number of missing commits to consider merging in batch mode.")
 
 (defvar gitmerge-status-file (expand-file-name "gitmerge-status"
 					       user-emacs-directory)
@@ -198,6 +209,7 @@ Will detect a default set of skipped revision by looking at
 cherry mark and search for `gitmerge-skip-regexp'.  The result is
 a list with entries of the form (SHA1 . SKIP), where SKIP denotes
 if and why this commit should be skipped."
+  (message "Finding missing commits...")
   (let (commits)
     ;; Go through the log and remember all commits that match
     ;; `gitmerge-skip-regexp' or are marked by --cherry-mark.
@@ -220,6 +232,7 @@ if and why this commit should be skipped."
 		(when (re-search-forward gitmerge-skip-regexp nil t)
 		  (setcdr (car commits) "R"))))))
 	(delete-region (point) (point-max))))
+    (message "Finding missing commits...done")
     (nreverse commits)))
 
 (defun gitmerge-setup-log-buffer (commits from)
@@ -435,8 +448,13 @@ Throw an user-error if we cannot resolve automatically."
 	    (erase-buffer)
 	    (insert "For the following files, conflicts could\n"
 		    "not be resolved automatically:\n\n")
-	    (call-process "git" nil t nil
-			  "diff" "--name-only" "--diff-filter=U")
+	    (let ((conflicts
+		   (with-temp-buffer
+		     (call-process "git" nil t nil
+				   "diff" "--name-only" "--diff-filter=U")
+		     (buffer-string))))
+	      (insert conflicts)
+	      (if noninteractive (message "Conflicts in:\n%s" conflicts)))
 	    (insert "\nResolve the conflicts manually, then run gitmerge again."
 		    "\nNote:\n  - You don't have to add resolved files or "
 		    "commit the merge yourself (but you can)."
@@ -474,7 +492,7 @@ If so, add no longer conflicted files and commit."
 	       (not (gitmerge-repo-clean)))
       (user-error "Repository is not clean"))
     (when statusexist
-      (if (not (y-or-n-p "Resume merge? "))
+      (if (or noninteractive (not (y-or-n-p "Resume merge? ")))
 	  (progn
 	    (delete-file gitmerge-status-file)
 	    ;; No resume.
@@ -540,8 +558,12 @@ Branch FROM will be prepended to the list."
        (list
 	(if (gitmerge-maybe-resume)
 	    'resume
-	  (completing-read "Merge branch: " (gitmerge-get-all-branches)
-			   nil t (gitmerge-default-branch)))))))
+	  (if noninteractive
+	      (or (pop command-line-args-left)
+		  (gitmerge-default-branch))
+	    (completing-read "Merge branch: "
+			     (gitmerge-get-all-branches)
+			     nil t (gitmerge-default-branch))))))))
   (let ((default-directory (vc-git-root default-directory)))
     (if (eq from 'resume)
 	(progn
@@ -553,6 +575,12 @@ Branch FROM will be prepended to the list."
       (setq gitmerge--from from)
       (when (null gitmerge--commits)
 	(user-error "Nothing to merge"))
+      (and noninteractive
+	   gitmerge-minimum-missing
+	   (< (length gitmerge--commits) gitmerge-minimum-missing)
+	   (user-error "Number of missing commits (%s) is less than %s"
+		       (length gitmerge--commits)
+		       gitmerge-minimum-missing))
       (with-current-buffer
 	  (gitmerge-setup-log-buffer gitmerge--commits gitmerge--from)
 	(goto-char (point-min))
@@ -563,7 +591,8 @@ Branch FROM will be prepended to the list."
 		"(C) Detected backport (cherry-mark), (R) Log matches "
 		"regexp, (M) Manually picked\n\n")
 	(gitmerge-mode)
-	(pop-to-buffer (current-buffer))))))
+	(pop-to-buffer (current-buffer))
+	(if noninteractive (gitmerge-start-merge))))))
 
 (defun gitmerge-start-merge ()
   (interactive)

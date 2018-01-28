@@ -1,6 +1,6 @@
 @c -*-texinfo-*-
 @c This is part of the GNU Emacs Lisp Reference Manual.
-@c Copyright (C) 1990-1994, 2001-2017 Free Software Foundation, Inc.
+@c Copyright (C) 1990-1994, 2001-2018 Free Software Foundation, Inc.
 @c See the file elisp.texi for copying conditions.
 @node Byte Compilation
 @chapter Byte Compilation
@@ -94,7 +94,7 @@ the @code{byte-compile} function.  You can compile a whole file with
 recorded in a buffer called @file{*Compile-Log*}, which uses
 Compilation mode.  @xref{Compilation Mode,,,emacs, The GNU Emacs
 Manual}.  However, if the variable @code{byte-compile-debug} is
-non-nil, error message will be signaled as Lisp errors instead
+non-@code{nil}, error messages will be signaled as Lisp errors instead
 (@pxref{Errors}).
 
 @cindex macro compilation
@@ -523,6 +523,11 @@ one you intend to suppress.
   Byte compiler warnings can be controlled more precisely by setting
 the variable @code{byte-compile-warnings}.  See its documentation
 string for details.
+
+@vindex byte-compile-error-on-warn
+  Sometimes you may wish the byte-compiler warnings to be reported
+using @code{error}.  If so, set @code{byte-compile-error-on-warn} to a
+non-nil value.
 
 @node Byte-Code Objects
 @section Byte-Code Function Objects

@@ -1,6 +1,6 @@
 ;;; ruby-mode.el --- Major mode for editing Ruby files -*- lexical-binding: t -*-
 
-;; Copyright (C) 1994-2017 Free Software Foundation, Inc.
+;; Copyright (C) 1994-2018 Free Software Foundation, Inc.
 
 ;; Authors: Yukihiro Matsumoto
 ;;	Nobuyoshi Nakada
@@ -1364,7 +1364,6 @@ delimiter."
                                              "\\)\\>")))
                     (eq (ruby-deep-indent-paren-p t) 'space)
                     (not (bobp)))
-                   (widen)
                    (goto-char (or begin parse-start))
                    (skip-syntax-forward " ")
                    (current-column))

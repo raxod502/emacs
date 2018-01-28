@@ -1,6 +1,6 @@
 ;;; server.el --- Lisp code for GNU Emacs running as server process -*- lexical-binding: t -*-
 
-;; Copyright (C) 1986-1987, 1992, 1994-2017 Free Software Foundation,
+;; Copyright (C) 1986-1987, 1992, 1994-2018 Free Software Foundation,
 ;; Inc.
 
 ;; Author: William Sommerfeld <wesommer@athena.mit.edu>
@@ -1061,9 +1061,8 @@ The following commands are accepted by the client:
           ;; supported any more.
           (cl-assert (eq (match-end 0) (length string)))
 	  (let ((request (substring string 0 (match-beginning 0)))
-		(coding-system (and (default-value 'enable-multibyte-characters)
-				    (or file-name-coding-system
-					default-file-name-coding-system)))
+		(coding-system (or file-name-coding-system
+				   default-file-name-coding-system))
 		nowait     ; t if emacsclient does not want to wait for us.
 		frame      ; Frame opened for the client (if any).
 		display    ; Open frame on this display.

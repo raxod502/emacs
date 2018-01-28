@@ -1,6 +1,6 @@
 ;;; cc-cmds.el --- user level commands for CC Mode
 
-;; Copyright (C) 1985, 1987, 1992-2017 Free Software Foundation, Inc.
+;; Copyright (C) 1985, 1987, 1992-2018 Free Software Foundation, Inc.
 
 ;; Authors:    2003- Alan Mackenzie
 ;;             1998- Martin Stjernholm
@@ -4737,7 +4737,7 @@ If a fill prefix is specified, it overrides all the above."
 (defalias 'c-comment-line-break-function 'c-indent-new-comment-line)
 (make-obsolete 'c-comment-line-break-function 'c-indent-new-comment-line "21.1")
 
-;; advice for indent-new-comment-line for older Emacsen
+;; Advice for Emacsen older than 21.1 (!), released 2001/10
 (unless (boundp 'comment-line-break-function)
   (defvar c-inside-line-break-advice nil)
   (defadvice indent-new-comment-line (around c-line-break-advice

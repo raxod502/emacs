@@ -1,6 +1,6 @@
 ;;; ox-odt.el --- OpenDocument Text Exporter for Org Mode -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2010-2017 Free Software Foundation, Inc.
+;; Copyright (C) 2010-2018 Free Software Foundation, Inc.
 
 ;; Author: Jambunathan K <kjambunathan at gmail dot com>
 ;; Keywords: outlines, hypermedia, calendar, wp
@@ -721,16 +721,17 @@ nil            Ignore math snippets.
                imagemagick to convert pdf files to png files.
 `mathjax'      Do MathJax preprocessing and arrange for MathJax.js to
                be loaded.
-t              Synonym for `mathjax'."
+
+Any other symbol is a synonym for `mathjax'."
   :group 'org-export-odt
   :version "24.4"
   :package-version '(Org . "8.0")
   :type '(choice
 	  (const :tag "Do not process math in any way" nil)
+	  (const :tag "Leave math verbatim" verbatim)
 	  (const :tag "Use dvipng to make images" dvipng)
 	  (const :tag "Use imagemagick to make images" imagemagick)
-	  (const :tag "Use MathJax to display math" mathjax)
-	  (const :tag "Leave math verbatim" verbatim)))
+	  (other :tag "Use MathJax to display math" mathjax)))
 
 
 ;;;; Links

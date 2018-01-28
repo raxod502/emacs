@@ -1,6 +1,6 @@
 ;;; startup.el --- process Emacs shell arguments  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1985-1986, 1992, 1994-2017 Free Software Foundation,
+;; Copyright (C) 1985-1986, 1992, 1994-2018 Free Software Foundation,
 ;; Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -896,8 +896,7 @@ init-file, or to a default value if loading is not possible."
         (debug-on-error-initial
          (if (eq init-file-debug t)
              'startup
-           init-file-debug))
-        (orig-enable-multibyte (default-value 'enable-multibyte-characters)))
+           init-file-debug)))
     (let ((debug-on-error debug-on-error-initial)
           ;; We create an anonymous function here so that we can call
           ;; it in different contexts depending on the value of
@@ -981,26 +980,7 @@ the `--debug-init' option to view a complete error backtrace."
                 debug-on-error-from-init-file debug-on-error)))
 
     (when debug-on-error-should-be-set
-      (setq debug-on-error debug-on-error-from-init-file))
-
-    (unless (or (default-value 'enable-multibyte-characters)
-                (eq orig-enable-multibyte (default-value
-                                            'enable-multibyte-characters)))
-
-      ;; Init file changed to unibyte.  Reset existing multibyte
-      ;; buffers (probably *scratch*, *Messages*, *Minibuf-0*).
-      ;; Arguably this should only be done if they're free of
-      ;; multibyte characters.
-      (mapc (lambda (buffer)
-              (with-current-buffer buffer
-                (if enable-multibyte-characters
-                    (set-buffer-multibyte nil))))
-            (buffer-list))
-
-      ;; Also re-set the language environment in case it was
-      ;; originally done before unibyte was set and is sensitive to
-      ;; unibyte (display table, terminal coding system &c).
-      (set-language-environment current-language-environment))))
+      (setq debug-on-error debug-on-error-from-init-file))))
 
 (defun command-line ()
   "A subroutine of `normal-top-level'.
@@ -1285,11 +1265,12 @@ please check its value")
 
   ;; Re-evaluate predefined variables whose initial value depends on
   ;; the runtime context.
-  (mapc 'custom-reevaluate-setting
-        ;; Initialize them in the same order they were loaded, in case there
-        ;; are dependencies between them.
-        (prog1 (nreverse custom-delayed-init-variables)
-          (setq custom-delayed-init-variables nil)))
+  (let (current-load-list) ; c-r-s may call defvar, and hence LOADHIST_ATTACH
+    (mapc 'custom-reevaluate-setting
+          ;; Initialize them in the same order they were loaded, in case there
+          ;; are dependencies between them.
+          (prog1 (nreverse custom-delayed-init-variables)
+            (setq custom-delayed-init-variables nil))))
 
   (normal-erase-is-backspace-setup-frame)
 

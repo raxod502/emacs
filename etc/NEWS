@@ -1,6 +1,6 @@
 GNU Emacs NEWS -- history of user-visible changes.
 
-Copyright (C) 2017 Free Software Foundation, Inc.
+Copyright (C) 2017-2018 Free Software Foundation, Inc.
 See the end of the file for license conditions.
 
 Please send Emacs bug reports to bug-gnu-emacs@gnu.org.
@@ -38,6 +38,14 @@ interpreter or modules that it uses.  If your platform supports it you
 can enable it when configuring, e.g., './configure CFLAGS="-g3 -O2
 -mmpx -fcheck-pointer-bounds"' on Intel MPX platforms.
 
+** Emacs now normally uses a C pointer type instead of a C integer
+type to implement Lisp_Object, which is the fundamental machine word
+type internal to the Emacs Lisp interpreter.  This change aims to
+catch typos and support -fcheck-pointer-bounds.  The 'configure'
+option --enable-check-lisp-object-type is therefore no longer as
+useful and so is no longer enabled by default in developer builds,
+to reduce differences between developer and production builds.
+
 
 * Startup Changes in Emacs 27.1
 
@@ -68,6 +76,12 @@ on GUI frames when tooltips are displayed in the echo area.  Instead,
 it resizes the echo area as needed to accommodate the full tool-tip
 text.
 
+---
+** Show modeline tooltips only if the corresponding action applies.
+Customize the option 'mode-line-default-help-echo' to restore the old
+behavior where the tooltip text is also shown when the corresponding
+action does not apply.
+
 +++
 ** New function 'logcount' calculates an integer's Hamming weight.
 
@@ -79,6 +93,11 @@ detect built-in libxml support, instead of testing for that
 indirectly, e.g., by checking that functions like
 'libxml-parse-html-region' return nil.
 
++++
+** New function 'fill-polish-nobreak-p', to be used in 'fill-nobreak-predicate'.
+It blocks line breaking after a one-letter word, also in the case when
+this word is preceded by a non-space, but non-alphanumeric character.
+
 
 * Editing Changes in Emacs 27.1
 
@@ -88,12 +107,31 @@ This controls how long Emacs will wait for updates to the graphical
 state to take effect (making a frame visible, for example).
 
 +++
-** The new user option 'electric-quote-replace-double' controls
-whether '"' is also replaced in 'electric-quote-mode'.  If non-nil,
-'"' is replaced by a double typographic quote.
+** New user option 'electric-quote-replace-double'.
+This option controls whether '"' is replaced in 'electric-quote-mode',
+in addition to other quote characters.  If non-nil, ASCII double-quote
+characters that quote text "like this" are replaced by double
+typographic quotes, “like this”, in text modes, and in comments in
+non-text modes.
 
 
 * Changes in Specialized Modes and Packages in Emacs 27.1
+
+** Ecomplete
+*** The ecomplete sorting has changed to a decay-based algorithm.
+This can be controlled by the new `ecomplete-sort-predicate' variable.
+
+*** The 'ecompleterc' file is now placed in ~/.emacs.d/ecompleterc by default
+Of course it will still find it if you have it in ~/.ecompleterc
+
+** Smtpmail
+Authentication mechanisms can be added via external packages, by
+defining new cl-defmethod of smtpmail-try-auth-method.
+
+** Footnote-mode
+*** Support Hebrew-style footnotes
+*** Footnote text lines are now aligned.
+Can be controlled via the new variable 'footnote-align-to-fn-text'.
 
 ** CSS mode
 
@@ -161,6 +199,12 @@ To restore the old behavior, use
     (add-hook 'eshell-expand-input-functions
               #'eshell-expand-history-references)
 
+** Tramp
+
++++
+*** New connection method "owncloud", which allows to access OwnCloud
+or NextCloud hosted files and directories.
+
 
 * New Modes and Packages in Emacs 27.1
 
@@ -184,10 +228,14 @@ support, you should set 'eldoc-documentation-function' instead of
 calling 'eldoc-message' directly.
 
 ** Old-style backquotes now generate an error.  They have been
-generating warnings for a decade.
+generating warnings for a decade.  To interpret old-style backquotes
+as new-style, bind the new variable 'force-new-style-backquotes' to t.
 
 
 * Lisp Changes in Emacs 27.1
+
+** 'print-quoted' now defaults to t, so if you want to see
+(quote x) instead of 'x you will have to bind it to nil where applicable.
 
 ** Internal parsing commands now use syntax-ppss and disregard
 open-paren-in-column-0-is-defun-start.  This affects mostly things like
@@ -213,8 +261,21 @@ a multibyte string even if its second argument is an ASCII character.
 'json-insert', 'json-parse-string', and 'json-parse-buffer'.  These
 are implemented in C using the Jansson library.
 
+---
+** The new function `mailcap-file-name-to-mime-type' has been added.
+It's a simple convenience function for looking up MIME types based on
+file name extensions.
+
++++
+** The new function 'read-answer' accepts either long or short answers
+depending on the new customizable variable 'read-answer-short'.
+
 
 * Changes in Emacs 27.1 on Non-Free Operating Systems
+
+---
+** Battery status is now supported in all Cygwin builds.
+Previously it was supported only in the Cygwin-w32 build.
 
 
 ----------------------------------------------------------------------

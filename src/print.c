@@ -1,6 +1,6 @@
 /* Lisp object printing and output streams.
 
-Copyright (C) 1985-1986, 1988, 1993-1995, 1997-2017 Free Software
+Copyright (C) 1985-1986, 1988, 1993-1995, 1997-2018 Free Software
 Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -2366,7 +2366,7 @@ This affects only `prin1'.  */);
   DEFVAR_BOOL ("print-quoted", print_quoted,
 	       doc: /* Non-nil means print quoted forms with reader syntax.
 I.e., (quote foo) prints as \\='foo, (function foo) as #\\='foo.  */);
-  print_quoted = 0;
+  print_quoted = true;
 
   DEFVAR_LISP ("print-gensym", Vprint_gensym,
 	       doc: /* Non-nil means print uninterned symbols so they will read as uninterned.

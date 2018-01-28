@@ -1,6 +1,6 @@
 ;;; gnus-cloud.el --- storing and retrieving data via IMAP
 
-;; Copyright (C) 2014-2017 Free Software Foundation, Inc.
+;; Copyright (C) 2014-2018 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; Keywords: mail
@@ -21,6 +21,10 @@
 ;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
+
+;; The name gnus-cloud parodizes but otherwise has little to do with
+;; "cloud computing", a misleading term normally best avoided.  See:
+;; https://www.gnu.org/philosophy/words-to-avoid.html#CloudComputing
 
 ;;; Code:
 

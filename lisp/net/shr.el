@@ -1,6 +1,6 @@
 ;;; shr.el --- Simple HTML Renderer -*- lexical-binding: t -*-
 
-;; Copyright (C) 2010-2017 Free Software Foundation, Inc.
+;; Copyright (C) 2010-2018 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; Keywords: html
@@ -595,10 +595,11 @@ size, and full-buffer size."
     ;; shr-pixel-column uses save-window-excursion, which can reset
     ;; point to 1.
     (let ((pt (point)))
-      (with-temp-buffer
-        (insert string)
-        (shr-pixel-column))
-      (goto-char pt))))
+      (prog1
+	  (with-temp-buffer
+	    (insert string)
+	    (shr-pixel-column))
+	(goto-char pt)))))
 
 (defsubst shr--translate-insertion-chars ()
   ;; Remove soft hyphens.

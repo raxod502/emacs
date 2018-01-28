@@ -1,6 +1,6 @@
 /* Fundamental definitions for GNU Emacs Lisp interpreter. -*- coding: utf-8 -*-
 
-Copyright (C) 1985-1987, 1993-1995, 1997-2017 Free Software Foundation,
+Copyright (C) 1985-1987, 1993-1995, 1997-2018 Free Software Foundation,
 Inc.
 
 This file is part of GNU Emacs.
@@ -4480,6 +4480,11 @@ extern void syms_of_gfilenotify (void);
 #ifdef HAVE_W32NOTIFY
 /* Defined on w32notify.c.  */
 extern void syms_of_w32notify (void);
+#endif
+
+#if defined HAVE_NTGUI || defined CYGWIN
+/* Defined in w32cygwinx.c.  */
+extern void syms_of_w32cygwinx (void);
 #endif
 
 /* Defined in xfaces.c.  */

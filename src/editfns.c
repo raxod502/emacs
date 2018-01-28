@@ -1,6 +1,6 @@
 /* Lisp functions pertaining to editing.                 -*- coding: utf-8 -*-
 
-Copyright (C) 1985-1987, 1989, 1993-2017 Free Software Foundation, Inc.
+Copyright (C) 1985-1987, 1989, 1993-2018 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -1037,7 +1037,7 @@ If you only want to save the current buffer but not point,
 then just use `save-current-buffer', or even `with-current-buffer'.
 
 Before Emacs 25.1, `save-excursion' used to save the mark state.
-To save the marker state as well as the point and buffer, use
+To save the mark state as well as point and the current buffer, use
 `save-mark-and-excursion'.
 
 usage: (save-excursion &rest BODY)  */)
@@ -5293,8 +5293,7 @@ Transposing beyond buffer boundaries is an error.  */)
         {
 	  USE_SAFE_ALLOCA;
 
-          modify_text (start1, end1);
-          modify_text (start2, end2);
+          modify_text (start1, end2);
           record_change (start1, len1);
           record_change (start2, len2);
           tmp_interval1 = copy_intervals (cur_intv, start1, len1);

@@ -1,6 +1,6 @@
 ;;; tramp-tests.el --- Tests of remote file access  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2013-2017 Free Software Foundation, Inc.
+;; Copyright (C) 2013-2018 Free Software Foundation, Inc.
 
 ;; Author: Michael Albinus <michael.albinus@gmx.de>
 
@@ -43,6 +43,7 @@
 
 (require 'dired)
 (require 'ert)
+(require 'ert-x)
 (require 'tramp)
 (require 'vc)
 (require 'vc-bzr)
@@ -57,8 +58,15 @@
 (defvar tramp-copy-size-limit)
 (defvar tramp-persistency-file-name)
 (defvar tramp-remote-process-environment)
-;; Suppress nasty messages.
-(fset 'shell-command-sentinel 'ignore)
+
+;; Beautify batch mode.
+(when noninteractive
+  ;; Suppress nasty messages.
+  (fset 'shell-command-sentinel 'ignore)
+  ;; We do not want to be interrupted.
+  (eval-after-load 'tramp-gvfs
+    '(fset 'tramp-gvfs-handler-askquestion
+	   (lambda (_message _choices) '(t nil 0)))))
 
 ;; There is no default value on w32 systems, which could work out of the box.
 (defconst tramp-test-temporary-file-directory
@@ -364,7 +372,10 @@ handled properly.  BODY shall not contain a timeout."
   "Check remote file name components."
   (let ((tramp-default-method "default-method")
 	(tramp-default-user "default-user")
-	(tramp-default-host "default-host"))
+	(tramp-default-host "default-host")
+	tramp-default-method-alist
+	tramp-default-user-alist
+	tramp-default-host-alist)
     ;; Expand `tramp-default-user' and `tramp-default-host'.
     (should (string-equal
 	     (file-remote-p "/method::")
@@ -714,7 +725,55 @@ handled properly.  BODY shall not contain a timeout."
 	"|method3:user3@host3:/path/to/file")
        'hop)
       (format "%s:%s@%s|%s:%s@%s|"
-	      "method1" "user1" "host1" "method2" "user2" "host2")))))
+	      "method1" "user1" "host1" "method2" "user2" "host2")))
+
+    ;; Expand `tramp-default-method-alist'.
+    (add-to-list 'tramp-default-method-alist '("host1" "user1" "method1"))
+    (add-to-list 'tramp-default-method-alist '("host2" "user2" "method2"))
+    (add-to-list 'tramp-default-method-alist '("host3" "user3" "method3"))
+    (should
+     (string-equal
+      (file-remote-p
+       (concat
+	"/-:user1@host1"
+	"|-:user2@host2"
+	"|-:user3@host3:/path/to/file"))
+      (format "/%s:%s@%s|%s:%s@%s|%s:%s@%s:"
+	      "-" "user1" "host1"
+	      "-" "user2" "host2"
+	      "method3" "user3" "host3")))
+
+    ;; Expand `tramp-default-user-alist'.
+    (add-to-list 'tramp-default-user-alist '("method1" "host1" "user1"))
+    (add-to-list 'tramp-default-user-alist '("method2" "host2" "user2"))
+    (add-to-list 'tramp-default-user-alist '("method3" "host3" "user3"))
+    (should
+     (string-equal
+      (file-remote-p
+       (concat
+	"/method1:host1"
+	"|method2:host2"
+	"|method3:host3:/path/to/file"))
+      (format "/%s:%s|%s:%s|%s:%s@%s:"
+	      "method1" "host1"
+	      "method2" "host2"
+	      "method3" "user3" "host3")))
+
+    ;; Expand `tramp-default-host-alist'.
+    (add-to-list 'tramp-default-host-alist '("method1" "user1" "host1"))
+    (add-to-list 'tramp-default-host-alist '("method2" "user2" "host2"))
+    (add-to-list 'tramp-default-host-alist '("method3" "user3" "host3"))
+    (should
+     (string-equal
+      (file-remote-p
+       (concat
+	"/method1:user1@"
+	"|method2:user2@"
+	"|method3:user3@:/path/to/file"))
+      (format "/%s:%s@|%s:%s@|%s:%s@%s:"
+	      "method1" "user1"
+	      "method2" "user2"
+	      "method3" "user3" "host3")))))
 
 (ert-deftest tramp-test02-file-name-dissect-simplified ()
   "Check simplified file name components."
@@ -722,6 +781,8 @@ handled properly.  BODY shall not contain a timeout."
   (let ((tramp-default-method "default-method")
 	(tramp-default-user "default-user")
 	(tramp-default-host "default-host")
+	tramp-default-user-alist
+	tramp-default-host-alist
 	(syntax tramp-syntax))
     (unwind-protect
 	(progn
@@ -969,7 +1030,39 @@ handled properly.  BODY shall not contain a timeout."
 	      "|user3@host3:/path/to/file")
 	     'hop)
 	    (format "%s@%s|%s@%s|"
-		    "user1" "host1" "user2" "host2"))))
+		    "user1" "host1" "user2" "host2")))
+
+	  ;; Expand `tramp-default-user-alist'.
+	  (add-to-list 'tramp-default-user-alist '(nil "host1" "user1"))
+	  (add-to-list 'tramp-default-user-alist '(nil "host2" "user2"))
+	  (add-to-list 'tramp-default-user-alist '(nil "host3" "user3"))
+	  (should
+	   (string-equal
+	    (file-remote-p
+	     (concat
+	      "/host1"
+	      "|host2"
+	      "|host3:/path/to/file"))
+	    (format "/%s|%s|%s@%s:"
+		    "host1"
+		    "host2"
+		    "user3" "host3")))
+
+	  ;; Expand `tramp-default-host-alist'.
+	  (add-to-list 'tramp-default-host-alist '(nil "user1" "host1"))
+	  (add-to-list 'tramp-default-host-alist '(nil "user2" "host2"))
+	  (add-to-list 'tramp-default-host-alist '(nil "user3" "host3"))
+	  (should
+	   (string-equal
+	    (file-remote-p
+	     (concat
+	      "/user1@"
+	      "|user2@"
+	      "|user3@:/path/to/file"))
+	    (format "/%s@|%s@|%s@%s:"
+		    "user1"
+		    "user2"
+		    "user3" "host3"))))
 
       ;; Exit.
       (tramp-change-syntax syntax))))
@@ -980,6 +1073,9 @@ handled properly.  BODY shall not contain a timeout."
   (let ((tramp-default-method "default-method")
 	(tramp-default-user "default-user")
 	(tramp-default-host "default-host")
+	tramp-default-method-alist
+	tramp-default-user-alist
+	tramp-default-host-alist
 	(syntax tramp-syntax))
     (unwind-protect
 	(progn
@@ -1537,7 +1633,55 @@ handled properly.  BODY shall not contain a timeout."
 	      "|method3/user3@host3]/path/to/file")
 	     'hop)
 	    (format "%s/%s@%s|%s/%s@%s|"
-		    "method1" "user1" "host1" "method2" "user2" "host2"))))
+		    "method1" "user1" "host1" "method2" "user2" "host2")))
+
+	  ;; Expand `tramp-default-method-alist'.
+	  (add-to-list 'tramp-default-method-alist '("host1" "user1" "method1"))
+	  (add-to-list 'tramp-default-method-alist '("host2" "user2" "method2"))
+	  (add-to-list 'tramp-default-method-alist '("host3" "user3" "method3"))
+	  (should
+	   (string-equal
+	    (file-remote-p
+	     (concat
+	      "/[/user1@host1"
+	      "|/user2@host2"
+	      "|/user3@host3]/path/to/file"))
+	    (format "/[/%s@%s|/%s@%s|%s/%s@%s]"
+		    "user1" "host1"
+		    "user2" "host2"
+		    "method3" "user3" "host3")))
+
+	  ;; Expand `tramp-default-user-alist'.
+	  (add-to-list 'tramp-default-user-alist '("method1" "host1" "user1"))
+	  (add-to-list 'tramp-default-user-alist '("method2" "host2" "user2"))
+	  (add-to-list 'tramp-default-user-alist '("method3" "host3" "user3"))
+	  (should
+	   (string-equal
+	    (file-remote-p
+	     (concat
+	      "/[method1/host1"
+	      "|method2/host2"
+	      "|method3/host3]/path/to/file"))
+	    (format "/[%s/%s|%s/%s|%s/%s@%s]"
+		    "method1" "host1"
+		    "method2" "host2"
+		    "method3" "user3" "host3")))
+
+	  ;; Expand `tramp-default-host-alist'.
+	  (add-to-list 'tramp-default-host-alist '("method1" "user1" "host1"))
+	  (add-to-list 'tramp-default-host-alist '("method2" "user2" "host2"))
+	  (add-to-list 'tramp-default-host-alist '("method3" "user3" "host3"))
+	  (should
+	   (string-equal
+	    (file-remote-p
+	     (concat
+	      "/[method1/user1@"
+	      "|method2/user2@"
+	      "|method3/user3@]/path/to/file"))
+	    (format "/[%s/%s@|%s/%s@|%s/%s@%s]"
+		    "method1" "user1"
+		    "method2" "user2"
+		    "method3" "user3" "host3"))))
 
       ;; Exit.
       (tramp-change-syntax syntax))))
@@ -1866,6 +2010,23 @@ This checks also `file-name-as-directory', `file-name-directory',
 	      (insert-file-contents tmp-name)
 	      (should (string-equal (buffer-string) "34")))
 
+	    ;; Check message.
+	    ;; Macro `ert-with-message-capture' was introduced in Emacs 26.1.
+	    (with-no-warnings (when (symbol-plist 'ert-with-message-capture)
+	      (let ((tramp-message-show-message t))
+		(dolist (noninteractive '(nil t))
+		  (dolist (visit '(nil t "string" no-message))
+		    (ert-with-message-capture tramp--test-messages
+		      (write-region "foo" nil tmp-name nil visit)
+		      ;; We must check the last line.  There could be
+		      ;; other messages from the progress reporter.
+		      (should
+		       (string-match
+			(if (and (null noninteractive)
+				 (or (eq visit t) (null visit) (stringp visit)))
+			    (format "^Wrote %s\n\\'" tmp-name) "^\\'")
+			tramp--test-messages))))))))
+
 	    ;; Do not overwrite if excluded.
 	    (cl-letf (((symbol-function 'y-or-n-p) (lambda (_prompt) t)))
 	      (write-region "foo" nil tmp-name nil nil nil 'mustbenew))
@@ -1923,7 +2084,9 @@ This checks also `file-name-as-directory', `file-name-directory',
 
 	  ;; Copy file to directory.
 	  (unwind-protect
-	      (progn
+	      ;; FIXME: This fails on my QNAP server, see
+	      ;; /share/Web/owncloud/data/owncloud.log
+	      (unless (tramp--test-owncloud-p)
 		(write-region "foo" nil source)
 		(should (file-exists-p source))
 		(make-directory target)
@@ -1944,7 +2107,11 @@ This checks also `file-name-as-directory', `file-name-directory',
 
 	  ;; Copy directory to existing directory.
 	  (unwind-protect
-	      (progn
+	      ;; FIXME: This fails on my QNAP server, see
+	      ;; /share/Web/owncloud/data/owncloud.log
+	      (unless (and (tramp--test-owncloud-p)
+			   (or (not (file-remote-p source))
+			       (not (file-remote-p target))))
 		(make-directory source)
 		(should (file-directory-p source))
 		(write-region "foo" nil (expand-file-name "foo" source))
@@ -1965,7 +2132,10 @@ This checks also `file-name-as-directory', `file-name-directory',
 
 	  ;; Copy directory/file to non-existing directory.
 	  (unwind-protect
-	      (progn
+	      ;; FIXME: This fails on my QNAP server, see
+	      ;; /share/Web/owncloud/data/owncloud.log
+	      (unless
+		  (and (tramp--test-owncloud-p) (not (file-remote-p source)))
 		(make-directory source)
 		(should (file-directory-p source))
 		(write-region "foo" nil (expand-file-name "foo" source))
@@ -2051,7 +2221,9 @@ This checks also `file-name-as-directory', `file-name-directory',
 
 	  ;; Rename directory to existing directory.
 	  (unwind-protect
-	      (progn
+	      ;; FIXME: This fails on my QNAP server, see
+	      ;; /share/Web/owncloud/data/owncloud.log
+	      (unless (tramp--test-owncloud-p)
 		(make-directory source)
 		(should (file-directory-p source))
 		(write-region "foo" nil (expand-file-name "foo" source))
@@ -2073,7 +2245,9 @@ This checks also `file-name-as-directory', `file-name-directory',
 
 	  ;; Rename directory/file to non-existing directory.
 	  (unwind-protect
-	      (progn
+	      ;; FIXME: This fails on my QNAP server, see
+	      ;; /share/Web/owncloud/data/owncloud.log
+	      (unless (tramp--test-owncloud-p)
 		(make-directory source)
 		(should (file-directory-p source))
 		(write-region "foo" nil (expand-file-name "foo" source))
@@ -2722,9 +2896,11 @@ This tests also `make-symbolic-link', `file-truename' and `add-name-to-file'."
 	      (file-symlink-p tmp-name2)))
 	    ;; `tmp-name3' is a local file name.  Therefore, the link
 	    ;; target remains unchanged, even if quoted.
-	    (make-symbolic-link tmp-name1 tmp-name3)
-	    (should
-	     (string-equal tmp-name1 (file-symlink-p tmp-name3)))
+	    ;; `make-symbolic-link' might not be permitted on w32 systems.
+	    (unless (tramp--test-windows-nt)
+	      (make-symbolic-link tmp-name1 tmp-name3)
+	      (should
+	       (string-equal tmp-name1 (file-symlink-p tmp-name3))))
 	    ;; Check directory as newname.
 	    (make-directory tmp-name4)
 	    (should-error
@@ -2826,15 +3002,17 @@ This tests also `make-symbolic-link', `file-truename' and `add-name-to-file'."
 	      (tramp-compat-file-name-quote
 	       (concat (file-remote-p tmp-name2) "/penguin:motd:"))))
 	    ;; `tmp-name3' is a local file name.
-	    (make-symbolic-link tmp-name1 tmp-name3)
-	    (should (file-symlink-p tmp-name3))
-            (should-not (string-equal tmp-name3 (file-truename tmp-name3)))
-	    ;; `file-truename' returns a quoted file name for `tmp-name3'.
-	    ;; We must unquote it.
-	    (should
-	     (string-equal
-	      (tramp-compat-file-name-unquote (file-truename tmp-name1))
-	      (tramp-compat-file-name-unquote (file-truename tmp-name3)))))
+	    ;; `make-symbolic-link' might not be permitted on w32 systems.
+	    (unless (tramp--test-windows-nt)
+	      (make-symbolic-link tmp-name1 tmp-name3)
+	      (should (file-symlink-p tmp-name3))
+              (should-not (string-equal tmp-name3 (file-truename tmp-name3)))
+	      ;; `file-truename' returns a quoted file name for `tmp-name3'.
+	      ;; We must unquote it.
+	      (should
+	       (string-equal
+		(tramp-compat-file-name-unquote (file-truename tmp-name1))
+		(tramp-compat-file-name-unquote (file-truename tmp-name3))))))
 
 	;; Cleanup.
 	(ignore-errors
@@ -3923,9 +4101,14 @@ This tests also `make-symbolic-link', `file-truename' and `add-name-to-file'."
 		(expand-file-name
 		 (format
 		  "%s~"
-		  ;; This is taken from `make-backup-file-name-1'.
+		  ;; This is taken from `make-backup-file-name-1'.  We
+		  ;; call `convert-standard-filename', because on MS
+		  ;; Windows the (local) colons must be replaced by
+		  ;; exclamation marks.
 		  (subst-char-in-string
-		   ?/ ?! (replace-regexp-in-string "!" "!!" tmp-name1)))
+		   ?/ ?!
+		   (replace-regexp-in-string
+		    "!" "!!" (convert-standard-filename tmp-name1))))
 		 tmp-name2)))))
 	    ;; The backup directory is created.
 	    (should (file-directory-p tmp-name2)))
@@ -3946,9 +4129,14 @@ This tests also `make-symbolic-link', `file-truename' and `add-name-to-file'."
 		(expand-file-name
 		 (format
 		  "%s~"
-		  ;; This is taken from `make-backup-file-name-1'.
+		  ;; This is taken from `make-backup-file-name-1'.  We
+		  ;; call `convert-standard-filename', because on MS
+		  ;; Windows the (local) colons must be replaced by
+		  ;; exclamation marks.
 		  (subst-char-in-string
-		   ?/ ?! (replace-regexp-in-string "!" "!!" tmp-name1)))
+		   ?/ ?!
+		   (replace-regexp-in-string
+		    "!" "!!" (convert-standard-filename tmp-name1))))
 		 tmp-name2)))))
 	    ;; The backup directory is created.
 	    (should (file-directory-p tmp-name2)))
@@ -3970,9 +4158,14 @@ This tests also `make-symbolic-link', `file-truename' and `add-name-to-file'."
 		(expand-file-name
 		 (format
 		  "%s~"
-		  ;; This is taken from `make-backup-file-name-1'.
+		  ;; This is taken from `make-backup-file-name-1'.  We
+		  ;; call `convert-standard-filename', because on MS
+		  ;; Windows the (local) colons must be replaced by
+		  ;; exclamation marks.
 		  (subst-char-in-string
-		   ?/ ?! (replace-regexp-in-string "!" "!!" tmp-name1)))
+		   ?/ ?!
+		   (replace-regexp-in-string
+		    "!" "!!" (convert-standard-filename tmp-name1))))
 		 tmp-name2)))))
 	    ;; The backup directory is created.
 	    (should (file-directory-p tmp-name2)))
@@ -4061,6 +4254,11 @@ This does not support external Emacs calls."
   (string-equal
    "mock" (file-remote-p tramp-test-temporary-file-directory 'method)))
 
+(defun tramp--test-owncloud-p ()
+  "Check, whether the owncloud method is used."
+  (string-equal
+   "owncloud" (file-remote-p tramp-test-temporary-file-directory 'method)))
+
 (defun tramp--test-rsync-p ()
   "Check, whether the rsync method is used.
 This does not support special file names."
@@ -4072,6 +4270,10 @@ This does not support special file names."
   (eq
    (tramp-find-foreign-file-name-handler tramp-test-temporary-file-directory)
    'tramp-sh-file-name-handler))
+
+(defun tramp--test-windows-nt ()
+  "Check, whether the locale host runs MS Windows."
+  (eq system-type 'windows-nt))
 
 (defun tramp--test-windows-nt-and-batch ()
   "Check, whether the locale host runs MS Windows in batch mode.
@@ -4663,7 +4865,8 @@ process sentinels.  They shall not disturb each other."
       (shell-command-to-string
        (format
 	"%s -batch -Q -L %s --eval %s"
-	(expand-file-name invocation-name invocation-directory)
+	(shell-quote-argument
+	 (expand-file-name invocation-name invocation-directory))
 	(mapconcat 'shell-quote-argument load-path " -L ")
 	(shell-quote-argument code)))))))
 
@@ -4695,7 +4898,8 @@ process sentinels.  They shall not disturb each other."
 	(shell-command-to-string
 	 (format
 	  "%s -batch -Q -L %s --eval %s"
-	  (expand-file-name invocation-name invocation-directory)
+	  (shell-quote-argument
+	   (expand-file-name invocation-name invocation-directory))
 	  (mapconcat 'shell-quote-argument load-path " -L ")
 	  (shell-quote-argument (format code tm)))))))))
 
@@ -4718,7 +4922,8 @@ process sentinels.  They shall not disturb each other."
 	(shell-command-to-string
 	 (format
 	  "%s -batch -Q -L %s --eval %s"
-	  (expand-file-name invocation-name invocation-directory)
+	  (shell-quote-argument
+	   (expand-file-name invocation-name invocation-directory))
 	  (mapconcat 'shell-quote-argument load-path " -L ")
 	  (shell-quote-argument code))))))))
 
@@ -4745,7 +4950,8 @@ process sentinels.  They shall not disturb each other."
       (shell-command-to-string
        (format
 	"%s -batch -Q -L %s -l tramp-sh --eval %s"
-	(expand-file-name invocation-name invocation-directory)
+	(shell-quote-argument
+	 (expand-file-name invocation-name invocation-directory))
 	(mapconcat 'shell-quote-argument load-path " -L ")
 	(shell-quote-argument code)))))))
 
@@ -4812,6 +5018,8 @@ Since it unloads Tramp, it shall be the last test to run."
 ;; * Work on skipped tests.  Make a comment, when it is impossible.
 ;; * Fix `tramp-test05-expand-file-name-relative' in `expand-file-name'.
 ;; * Fix `tramp-test06-directory-file-name' for `ftp'.
+;; * Investigate, why `tramp-test11-copy-file' and `tramp-test12-rename-file'
+;;   do not work properly for `owncloud'.
 ;; * Fix `tramp-test29-start-file-process' on MS Windows (`process-send-eof'?).
 ;; * Fix `tramp-test30-interrupt-process', timeout doesn't work reliably.
 ;; * Fix Bug#16928 in `tramp-test41-asynchronous-requests'.

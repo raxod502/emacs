@@ -1,5 +1,5 @@
 /* Call a Lisp function interactively.
-   Copyright (C) 1985-1986, 1993-1995, 1997, 2000-2017 Free Software
+   Copyright (C) 1985-1986, 1993-1995, 1997, 2000-2018 Free Software
    Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -288,7 +288,8 @@ invoke it.  If KEYS is omitted or nil, the return value of
   ptrdiff_t next_event;
 
   Lisp_Object prefix_arg;
-  char *string;
+  char *string, *string_end;
+  ptrdiff_t string_len;
   const char *tem;
 
   /* If varies[i] > 0, the i'th argument shouldn't just have its value
@@ -396,6 +397,8 @@ invoke it.  If KEYS is omitted or nil, the return value of
   /* SPECS is set to a string; use it as an interactive prompt.
      Copy it so that STRING will be valid even if a GC relocates SPECS.  */
   SAFE_ALLOCA_STRING (string, specs);
+  string_len = SBYTES (specs);
+  string_end = string + string_len;
 
   /* Here if function specifies a string to control parsing the defaults.  */
 
@@ -418,7 +421,7 @@ invoke it.  If KEYS is omitted or nil, the return value of
 	      if (!NILP (record_flag))
 		{
 		  char *p = string;
-		  while (*p)
+		  while (p < string_end)
 		    {
 		      if (! (*p == 'r' || *p == 'p' || *p == 'P'
 			     || *p == '\n'))
@@ -469,7 +472,7 @@ invoke it.  If KEYS is omitted or nil, the return value of
      `funcall-interactively') plus the number of arguments the interactive spec
      would have us give to the function.  */
   tem = string;
-  for (nargs = 2; *tem; )
+  for (nargs = 2; tem < string_end; )
     {
       /* 'r' specifications ("point and mark as 2 numeric args")
 	 produce *two* arguments.  */
@@ -477,7 +480,7 @@ invoke it.  If KEYS is omitted or nil, the return value of
 	nargs += 2;
       else
 	nargs++;
-      tem = strchr (tem, '\n');
+      tem = memchr (tem, '\n', string_len - (tem - string));
       if (tem)
 	++tem;
       else
@@ -503,9 +506,12 @@ invoke it.  If KEYS is omitted or nil, the return value of
     specbind (Qenable_recursive_minibuffers, Qt);
 
   tem = string;
-  for (i = 2; *tem; i++)
+  for (i = 2; tem < string_end; i++)
     {
-      visargs[1] = make_string (tem + 1, strcspn (tem + 1, "\n"));
+      char *pnl = memchr (tem + 1, '\n', string_len - (tem + 1 - string));
+      ptrdiff_t sz = pnl ? pnl - (tem + 1) : string_end - (tem + 1);
+
+      visargs[1] = make_string (tem + 1, sz);
       callint_message = Fformat_message (i - 1, visargs + 1);
 
       switch (*tem)
@@ -778,10 +784,23 @@ invoke it.  If KEYS is omitted or nil, the return value of
 	     if anyone tries to define one here.  */
 	case '+':
 	default:
-	  error ("Invalid control letter `%c' (#o%03o, #x%04x) in interactive calling string",
-		 STRING_CHAR ((unsigned char *) tem),
-		 (unsigned) STRING_CHAR ((unsigned char *) tem),
-		 (unsigned) STRING_CHAR ((unsigned char *) tem));
+	  {
+	    /* How many bytes are left unprocessed in the specs string?
+	       (Note that this excludes the trailing null byte.)  */
+	    ptrdiff_t bytes_left = string_len - (tem - string);
+	    unsigned letter;
+
+	    /* If we have enough bytes left to treat the sequence as a
+	       character, show that character's codepoint; otherwise
+	       show only its first byte.  */
+	    if (bytes_left >= BYTES_BY_CHAR_HEAD (*((unsigned char *) tem)))
+	      letter = STRING_CHAR ((unsigned char *) tem);
+	    else
+	      letter = *((unsigned char *) tem);
+
+	    error ("Invalid control letter `%c' (#o%03o, #x%04x) in interactive calling string",
+		   (int) letter, letter, letter);
+	  }
 	}
 
       if (varies[i] == 0)
@@ -790,9 +809,9 @@ invoke it.  If KEYS is omitted or nil, the return value of
       if (NILP (visargs[i]) && STRINGP (args[i]))
 	visargs[i] = args[i];
 
-      tem = strchr (tem, '\n');
+      tem = memchr (tem, '\n', string_len - (tem - string));
       if (tem) tem++;
-      else tem = "";
+      else tem = string_end;
     }
   unbind_to (speccount, Qnil);
 
