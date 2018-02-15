@@ -1712,39 +1712,59 @@ handled properly.  BODY shall not contain a timeout."
 
 (ert-deftest tramp-test04-substitute-in-file-name ()
   "Check `substitute-in-file-name'."
-  (should (string-equal (substitute-in-file-name "/method:host://foo") "/foo"))
+  (should (string-equal (substitute-in-file-name "/method:host:///foo") "/foo"))
+  (should
+   (string-equal
+    (substitute-in-file-name "/method:host://foo") "/method:host:/foo"))
+  (should
+   (string-equal (substitute-in-file-name "/method:host:/path///foo") "/foo"))
   (should
    (string-equal
     (substitute-in-file-name "/method:host:/path//foo") "/method:host:/foo"))
-  (should
-   (string-equal (substitute-in-file-name "/method:host:/path///foo") "/foo"))
   ;; Quoting local part.
+  (should
+   (string-equal
+    (substitute-in-file-name "/method:host:/:///foo") "/method:host:/:///foo"))
   (should
    (string-equal
     (substitute-in-file-name "/method:host:/://foo") "/method:host:/://foo"))
   (should
    (string-equal
-    (substitute-in-file-name "/method:host:/:/path//foo")
-    "/method:host:/:/path//foo"))
-  (should
-   (string-equal
     (substitute-in-file-name "/method:host:/:/path///foo")
     "/method:host:/:/path///foo"))
-
   (should
    (string-equal
-    (substitute-in-file-name "/method:host:/path/~/foo") "/method:host:~/foo"))
+    (substitute-in-file-name "/method:host:/:/path//foo")
+    "/method:host:/:/path//foo"))
+
   (should
-   (string-equal (substitute-in-file-name "/method:host:/path//~/foo") "~/foo"))
+   (string-equal (substitute-in-file-name "/method:host://~foo") "/~foo"))
+  (should
+   (string-equal
+    (substitute-in-file-name "/method:host:/~foo") "/method:host:/~foo"))
+  (should
+   (string-equal (substitute-in-file-name "/method:host:/path//~foo") "/~foo"))
+  ;; (substitute-in-file-name "/path/~foo") expands only to "/~foo"",
+  ;; if $LOGNAME or $USER is "foo".  Otherwise, it doesn't expand.
+  (should
+   (string-equal
+    (substitute-in-file-name
+     "/method:host:/path/~foo") "/method:host:/path/~foo"))
   ;; Quoting local part.
   (should
    (string-equal
-    (substitute-in-file-name "/method:host:/:/path/~/foo")
-    "/method:host:/:/path/~/foo"))
+    (substitute-in-file-name "/method:host:/://~foo") "/method:host:/://~foo"))
   (should
    (string-equal
-    (substitute-in-file-name "/method:host:/:/path//~/foo")
-    "/method:host:/:/path//~/foo"))
+    (substitute-in-file-name "/method:host:/:/~foo") "/method:host:/:/~foo"))
+  (should
+   (string-equal
+    (substitute-in-file-name
+     "/method:host:/:/path//~foo") "/method:host:/:/path//~foo"))
+  (should
+   (string-equal
+    (substitute-in-file-name
+     "/method:host:/:/path/~foo") "/method:host:/:/path/~foo"))
 
   (let (process-environment)
     (should
@@ -2047,8 +2067,8 @@ This checks also `file-name-as-directory', `file-name-directory',
   "Check `copy-file'."
   (skip-unless (tramp--test-enabled))
 
-  ;; `filename-non-special' has been fixed in Emacs 26.1, see Bug#29579.
-  (dolist (quoted (if (and tramp--test-expensive-test (tramp--test-emacs26-p))
+  ;; `filename-non-special' has been fixed in Emacs 27.1, see Bug#29579.
+  (dolist (quoted (if (and tramp--test-expensive-test (tramp--test-emacs27-p))
 		      '(nil t) '(nil)))
     (let ((tmp-name1 (tramp--test-make-temp-name nil quoted))
 	  (tmp-name2 (tramp--test-make-temp-name nil quoted))
@@ -2158,8 +2178,8 @@ This checks also `file-name-as-directory', `file-name-directory',
   "Check `rename-file'."
   (skip-unless (tramp--test-enabled))
 
-  ;; `filename-non-special' has been fixed in Emacs 26.1, see Bug#29579.
-  (dolist (quoted (if (and tramp--test-expensive-test (tramp--test-emacs26-p))
+  ;; `filename-non-special' has been fixed in Emacs 27.1, see Bug#29579.
+  (dolist (quoted (if (and tramp--test-expensive-test (tramp--test-emacs27-p))
 		      '(nil t) '(nil)))
     (let ((tmp-name1 (tramp--test-make-temp-name nil quoted))
 	  (tmp-name2 (tramp--test-make-temp-name nil quoted))
@@ -3011,7 +3031,10 @@ This tests also `make-symbolic-link', `file-truename' and `add-name-to-file'."
 	      ;; We must unquote it.
 	      (should
 	       (string-equal
-		(tramp-compat-file-name-unquote (file-truename tmp-name1))
+		(funcall
+		 (if (tramp--test-emacs27-p)
+		     'tramp-compat-file-name-unquote 'identity)
+		 (file-truename tmp-name1))
 		(tramp-compat-file-name-unquote (file-truename tmp-name3))))))
 
 	;; Cleanup.
@@ -3143,8 +3166,8 @@ This tests also `make-symbolic-link', `file-truename' and `add-name-to-file'."
   (skip-unless (tramp--test-enabled))
   (skip-unless (file-acl tramp-test-temporary-file-directory))
 
-  ;; `filename-non-special' has been fixed in Emacs 26.1, see Bug#29579.
-  (dolist (quoted (if (and tramp--test-expensive-test (tramp--test-emacs26-p))
+  ;; `filename-non-special' has been fixed in Emacs 27.1, see Bug#29579.
+  (dolist (quoted (if (and tramp--test-expensive-test (tramp--test-emacs27-p))
 		      '(nil t) '(nil)))
     (let ((tmp-name1 (tramp--test-make-temp-name nil quoted))
 	  (tmp-name2 (tramp--test-make-temp-name nil quoted))
@@ -3221,8 +3244,8 @@ This tests also `make-symbolic-link', `file-truename' and `add-name-to-file'."
    (not (equal (file-selinux-context tramp-test-temporary-file-directory)
 	       '(nil nil nil nil))))
 
-  ;; `filename-non-special' has been fixed in Emacs 26.1, see Bug#29579.
-  (dolist (quoted (if (and tramp--test-expensive-test (tramp--test-emacs26-p))
+  ;; `filename-non-special' has been fixed in Emacs 27.1, see Bug#29579.
+  (dolist (quoted (if (and tramp--test-expensive-test (tramp--test-emacs27-p))
 		      '(nil t) '(nil)))
     (let ((tmp-name1 (tramp--test-make-temp-name nil quoted))
 	  (tmp-name2 (tramp--test-make-temp-name nil quoted))
@@ -4216,6 +4239,12 @@ Some semantics has been changed for there, w/o new functions or
 variables, so we check the Emacs version directly."
   (>= emacs-major-version 26))
 
+(defun tramp--test-emacs27-p ()
+  "Check for Emacs version >= 27.1.
+Some semantics has been changed for there, w/o new functions or
+variables, so we check the Emacs version directly."
+  (>= emacs-major-version 27))
+
 (defun tramp--test-adb-p ()
   "Check, whether the remote host runs Android.
 This requires restrictions of file name syntax."
@@ -4296,8 +4325,8 @@ This requires restrictions of file name syntax."
 
 (defun tramp--test-check-files (&rest files)
   "Run a simple but comprehensive test over every file in FILES."
-  ;; `filename-non-special' has been fixed in Emacs 26.1, see Bug#29579.
-  (dolist (quoted (if (and tramp--test-expensive-test (tramp--test-emacs26-p))
+  ;; `filename-non-special' has been fixed in Emacs 27.1, see Bug#29579.
+  (dolist (quoted (if (and tramp--test-expensive-test (tramp--test-emacs27-p))
 		      '(nil t) '(nil)))
     ;; We must use `file-truename' for the temporary directory,
     ;; because it could be located on a symlinked directory.  This

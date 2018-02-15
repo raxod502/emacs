@@ -268,6 +268,9 @@ forward-comment, scan-sexps, and forward-sexp when parsing backward.
 The new variable 'comment-use-syntax-ppss' can be set to nil to recover the old
 behavior if needed.
 
+** The `server-name' and `server-socket-dir' variables are set when a
+socket has been pased to Emacs (Bug#24218).
+
 ---
 ** The 'file-system-info' function is now available on all platforms.
 instead of just Microsoft platforms.  This fixes a 'get-free-disk-space'
@@ -295,12 +298,24 @@ file name extensions.
 ** The new function 'read-answer' accepts either long or short answers
 depending on the new customizable variable 'read-answer-short'.
 
+** The function 'load' now behaves correctly when loading modules.
+Specifically, it puts the module name into 'load-history', prints
+loading messages if requested, and protects against recursive loads.
+
 
 * Changes in Emacs 27.1 on Non-Free Operating Systems
 
 ---
 ** Battery status is now supported in all Cygwin builds.
 Previously it was supported only in the Cygwin-w32 build.
+
+** Emacs now handles key combinations involving the macOS "command"
+and "option" modifier keys more correctly.
+
+** The special handling of `frame-title-format' on NS where setting it
+to `t' would enable the macOS proxy icon has been replaced with a
+separate variable, `ns-use-proxy-icon'. `frame-title-format' will now
+work as on other platforms.
 
 
 ----------------------------------------------------------------------
