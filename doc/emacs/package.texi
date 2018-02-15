@@ -241,12 +241,11 @@ lower-priority archives will not be shown in the menu, if the same
 package is available from a higher-priority archive.  (This is
 controlled by the value of @code{package-menu-hide-low-priority}.)
 
-  Once a package is downloaded and installed, it is @dfn{loaded} into
-the current Emacs session.  Loading a package is not quite the same as
-loading a Lisp library (@pxref{Lisp Libraries}); loading a package
-adds its directory to @code{load-path} and loads its autoloads.  The
-effect of a package's autoloads varies from package to package.  Most
-packages just make some new commands available, while others have more
+  Once a package is downloaded and installed, it is made available to
+the current Emacs session.  Making a package available adds its
+directory to @code{load-path} and loads its autoloads.  The effect of
+a package's autoloads varies from package to package.  Most packages
+just make some new commands available, while others have more
 wide-ranging effects on the Emacs session.  For such information,
 consult the package's help buffer.
 
@@ -254,9 +253,9 @@ consult the package's help buffer.
 Emacs in all subsequent sessions.  This happens at startup, before
 processing the init file but after processing the early init file
 (@pxref{Early Init File,,, elisp, The Emacs Lisp Reference Manual}).
-As an exception, Emacs does not load packages at startup if invoked
-with the @samp{-q} or @samp{--no-init-file} options (@xref{Initial
-Options}).
+As an exception, Emacs does not make packages available at startup if
+invoked with the @samp{-q} or @samp{--no-init-file} options
+(@xref{Initial Options}).
 
 @vindex package-enable-at-startup
   To keep Emacs from automatically making packages available at
@@ -275,21 +274,22 @@ packages available after startup, invoke the command @kbd{M-x
 package-initialize}.
 
 @vindex package-load-list
-  For finer control over package loading, you can use the variable
-@code{package-load-list}.  Its value should be a list.  A list element
-of the form @code{(@var{name} @var{version})} tells Emacs to load
-version @var{version} of the package named @var{name}.  Here,
-@var{version} should be a version string (corresponding to a specific
-version of the package), or @code{t} (which means to load any
-installed version), or @code{nil} (which means no version; this
-disables the package, preventing it from being loaded).  A list
-element can also be the symbol @code{all}, which means to load the
-latest installed version of any package not named by the other list
-elements.  The default value is just @code{'(all)}.
+  For finer control over which packages are made available at startup,
+you can use the variable @code{package-load-list}.  Its value should
+be a list.  A list element of the form @code{(@var{name}
+@var{version})} tells Emacs to make available version @var{version} of
+the package named @var{name}.  Here, @var{version} should be a version
+string (corresponding to a specific version of the package), or
+@code{t} (which means to make available any installed version), or
+@code{nil} (which means no version; this disables the package,
+preventing it from being made available).  A list element can also be
+the symbol @code{all}, which means to make available the latest
+installed version of any package not named by the other list elements.
+The default value is just @code{'(all)}.
 
   For example, if you set @code{package-load-list} to @code{'((muse
-"3.20") all)}, then Emacs only loads version 3.20 of the @samp{muse}
-package, plus any installed version of packages other than
+"3.20") all)}, then Emacs only makes available version 3.20 of the
+@samp{muse} package, plus any installed version of packages other than
 @samp{muse}.  Any other version of @samp{muse} that happens to be
 installed will be ignored.  The @samp{muse} package will be listed in
 the package menu with the @samp{held} status.
