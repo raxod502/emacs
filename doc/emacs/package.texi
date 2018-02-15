@@ -262,8 +262,8 @@ invoked with the @samp{-q} or @samp{--no-init-file} options
 startup, change the variable @code{package-enable-at-startup} to
 @code{nil}.  You must do this in the early init file (@pxref{Early
 Init File,,, elisp, The Emacs Lisp Reference Manual}), as the variable
-is read before loading the regular init file.  Currently it cannot be
-done via Customize.
+is read before loading the regular init file.  Currently this variable
+cannot be set via Customize.
 
 @findex package-initialize
   If you have set @code{package-enable-at-startup} to @code{nil}, you
