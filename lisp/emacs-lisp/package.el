@@ -1444,10 +1444,21 @@ If optional arg NO-ACTIVATE is non-nil, don't activate packages.
 If called as part of loading `user-init-file', set
 `package-enable-at-startup' to nil, to prevent accidentally
 loading packages twice.
+
 It is not necessary to adjust `load-path' or `require' the
 individual packages after calling `package-initialize' -- this is
-taken care of by `package-initialize'."
+taken care of by `package-initialize'.
+
+If `package-initialize' is called twice during Emacs startup,
+signal a warning, since this is a bad idea except in highly
+advanced use cases.  To suppress the warning, remove the
+superfluous call to `package-initialize' from your init-file.  If
+you have code which must run before `package-initialize', put
+that code in the early init-file."
   (interactive)
+  (when (and package--initialized (not after-init-time))
+    (lwarn '(package reinitialization) :warning
+           "Unnecessary call to `package-initialize' in init file"))
   (setq package-alist nil)
   (setq package-enable-at-startup nil)
   (package-load-all-descriptors)
