@@ -175,6 +175,18 @@ call (package-initialize) in your init-file."
   :type 'boolean
   :version "24.1")
 
+(defcustom package-warn-on-reinitialization t
+  "Whether to warn when `package-initialize' is called twice.
+This only warns if `package-initialize' is called more than once
+before Emacs startup has completed.  You should only customize
+this variable for highly advanced usage.  Almost always, this
+warning indicates that you have a superfluous call to
+`package-initialize' in your init file, and should delete it,
+since `package-initialize' is called automatically before Emacs
+loads the init file."
+  :type 'boolean
+  :version "27.1")
+
 (defcustom package-load-list '(all)
   "List of packages for `package-initialize' to make available.
 Each element in this list should be a list (NAME VERSION), or the
@@ -1444,10 +1456,18 @@ If optional arg NO-ACTIVATE is non-nil, don't activate packages.
 If called as part of loading `user-init-file', set
 `package-enable-at-startup' to nil, to prevent accidentally
 loading packages twice.
+
 It is not necessary to adjust `load-path' or `require' the
 individual packages after calling `package-initialize' -- this is
-taken care of by `package-initialize'."
+taken care of by `package-initialize'.
+
+If `package-initialize' is called twice during Emacs startup,
+signal a warning.  See `package-warn-on-reinitialization'."
   (interactive)
+  (when (and package--initialized
+             (not after-init-time)
+             package-warn-on-reinitialization)
+    (warn "Unnecessary call to `package-initialize' in init file"))
   (setq package-alist nil)
   (setq package-enable-at-startup nil)
   (package-load-all-descriptors)
